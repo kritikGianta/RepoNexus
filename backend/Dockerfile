@@ -31,6 +31,6 @@ COPY own_models ./own_models
 RUN mkdir -p /app/rag_stores && chown appuser:appuser /app/rag_stores
 
 USER appuser
-EXPOSE 8000
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Render sets the PORT environment variable dynamically. 
+# We use shell form for CMD so the environment variable is evaluated.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
