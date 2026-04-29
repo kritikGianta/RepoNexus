@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Build and env
+.env
+.env.*
+*.log
+coverage.xml
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# Node
+node_modules/
+dist/
+
+# MLflow and artifacts
+mlruns/
+artifacts/
+
+# Ignore large ML models
+model.safetensors
+scratch/

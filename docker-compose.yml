@@ -1,0 +1,103 @@
+
+
+# ==========================================================
+# DebtLens — Docker Compose (Local Development & Testing)
+# ==========================================================
+# Usage:
+#   docker compose up --build        (first time / after code changes)
+#   docker compose up                (subsequent runs)
+#   docker compose down              (stop everything)
+#   docker compose down -v           (stop + wipe volumes)
+# ==========================================================
+
+services:
+  # ── Redis (lightweight, required for Celery) ──────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # ── MLflow (experiment tracking) ──────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.20.1
+    restart: unless-stopped
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:///mlflow.db
+      --default-artifact-root /mlruns
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlruns
+
+  # ── Backend (FastAPI) ─────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override specific vars for Docker networking
+      REDIS_URL: redis://redis:6379/0
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      API_BASE_URL: http://localhost:8000
+      CORS_ORIGINS: http://localhost,http://localhost:80,http://localhost:5175
+      environment: production
+    depends_on:
+      - redis
+      - mlflow
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist RAG embeddings and SQLite DB across restarts
+      - backend_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ── Worker (Celery — background analysis jobs) ────────
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.worker
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      API_BASE_URL: http://localhost:8000
+      CORS_ORIGINS: http://localhost,http://localhost:80,http://localhost:5175
+      environment: production
+    depends_on:
+      - backend
+      - redis
+      - mlflow
+
+  # ── Frontend (Nginx + React) ──────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+        VITE_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  redis_data:
+  mlflow_data:
+  backend_data:

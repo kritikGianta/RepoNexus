@@ -1,0 +1,13 @@
+{
+  "id2label": {
+    "0": "bug",
+    "1": "enhancement",
+    "2": "question"
+  },
+  "label2id": {
+    "bug": 0,
+    "enhancement": 1,
+    "question": 2
+  },
+  "num_labels": 3
+}

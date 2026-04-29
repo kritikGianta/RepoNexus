@@ -1,0 +1,35 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic-settings==2.7.1
+sqlalchemy[asyncio]==2.0.38
+aiomysql==0.2.0
+aiosqlite==0.20.0
+alembic==1.14.1
+python-jose[cryptography]==3.3.0
+cryptography==44.0.0
+httpx==0.28.1
+PyGithub==2.5.0
+celery[redis]==5.4.0
+redis==5.2.1
+langchain==0.3.15
+langchain-community==0.3.15
+langchain-groq==0.2.3
+langchain-text-splitters==0.3.5
+faiss-cpu==1.9.0.post1
+sentence-transformers==2.7.0
+datasets
+pyarrow<19.0.0
+# RAG Chat Feature: If ML deps fail to import, a lightweight substring-search
+# fallback is active, returning keyword matches over files instead of semantic results.
+tree-sitter==0.24.0
+tree-sitter-languages==1.10.2
+radon==6.0.1
+pylint==3.3.4
+flake8==7.1.1
+spacy==3.8.4
+mlflow==2.20.1
+python-multipart==0.0.20
+orjson==3.10.15
+tenacity==9.0.0
+networkx==3.4.2
+structlog==25.1.0

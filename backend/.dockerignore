@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+*.db
+.git/
+.gitignore
+*.md
+.env*
+mlruns/
+rag_stores/
+tests/
+.pytest_cache/
+test_*.py
+.vscode/
+.DS_Store
