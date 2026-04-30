@@ -428,25 +428,45 @@ class AnalysisPipeline:
         ]
 
     def _attach_ai_context(self, findings: list[DebtFindingDraft], vector_index) -> list[DebtFindingDraft]:
+        import concurrent.futures
         enriched = []
         # Sort by score descending so we enrich the most important findings first
         sorted_findings = sorted(findings, key=lambda f: f.raw_score, reverse=True)
-        MAX_AI_ENRICHMENTS = 10  # Keep analysis fast — each Groq call takes 2-3s
-        for index, finding in enumerate(sorted_findings):
-            if index < MAX_AI_ENRICHMENTS:
+        MAX_AI_ENRICHMENTS = 10
+        
+        to_enrich = sorted_findings[:MAX_AI_ENRICHMENTS]
+        others = sorted_findings[MAX_AI_ENRICHMENTS:]
+
+        def _enrich_single(finding):
+            try:
                 query = f"{finding.debt_category.value} in {finding.file_path}: {finding.title}"
                 context = self.embedder.query(vector_index, query_text=query, k=4)
                 explanation, fix = self.rag_engine.generate_explanation_and_fix(finding=finding, context_chunks=context)
                 finding.ai_explanation = explanation
                 finding.ai_fix_suggestion = fix
-            else:
-                finding.ai_explanation = (
-                    "AI enrichment was skipped for this item to keep analysis latency bounded."
-                )
-                finding.ai_fix_suggestion = (
-                    "Prioritize this item by severity and refactor the affected code with targeted tests."
-                )
+            except Exception:
+                finding.ai_explanation = "Detailed AI analysis timed out."
+                finding.ai_fix_suggestion = "Review the offending code snippet and refactor for clarity."
+            return finding
+
+        # Use a small thread pool for the 10 parallel API calls
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_AI_ENRICHMENTS) as executor:
+            # Set a total timeout for the entire enrichment phase to be safe (e.g., 40s)
+            future_to_finding = {executor.submit(_enrich_single, f): f for f in to_enrich}
+            for future in concurrent.futures.as_completed(future_to_finding, timeout=40):
+                try:
+                    enriched.append(future.result())
+                except Exception:
+                    f = future_to_finding[future]
+                    f.ai_explanation = "AI analysis skipped due to timeout."
+                    f.ai_fix_suggestion = "Manual review recommended."
+                    enriched.append(f)
+
+        for finding in others:
+            finding.ai_explanation = "AI enrichment was skipped for this item to keep analysis latency bounded."
+            finding.ai_fix_suggestion = "Prioritize this item by severity and refactor the affected code."
             enriched.append(finding)
+
         return enriched
 
     def _to_payload(self, finding: DebtFindingDraft) -> dict:

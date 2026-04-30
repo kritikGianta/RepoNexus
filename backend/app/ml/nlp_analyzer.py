@@ -7,10 +7,8 @@ import spacy
 
 class NLPAnalyzer:
     def __init__(self) -> None:
-        try:
-            self.nlp = spacy.load("en_core_web_sm")
-        except Exception:
-            self.nlp = spacy.blank("en")
+        # Avoid loading heavy Spacy models in production to save RAM (512MB limit)
+        self.vague_tokens = {"todo", "fixme", "later", "stuff", "thing", "hack", "refactor"}
 
     def analyze_documentation(self, content: str) -> dict:
         comments = self._extract_comments_and_docstrings(content)
@@ -18,12 +16,11 @@ class NLPAnalyzer:
         doc_density = len(comments) / total_lines
 
         quality_penalty = 0
-        vague_tokens = {"todo", "fixme", "later", "stuff", "thing"}
-
+        
         for block in comments:
-            doc = self.nlp(block.lower())
-            lemmas = {token.lemma_ for token in doc if token.is_alpha}
-            if lemmas.intersection(vague_tokens):
+            # Simple word-based analysis instead of heavy NLP
+            words = set(re.findall(r"\w+", block.lower()))
+            if words.intersection(self.vague_tokens):
                 quality_penalty += 1
 
         return {
