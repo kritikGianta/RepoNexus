@@ -11,25 +11,17 @@ settings = get_settings()
 
 class MLflowTracker:
     def __init__(self) -> None:
-        mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-        mlflow.set_experiment(settings.mlflow_experiment_name)
+        # MLFlow requires write access to create ./mlruns folders.
+        # Since Render's free tier uses a read-only filesystem, we gracefully bypass MLFlow.
+        pass
 
     @contextmanager
     def run_context(self, repo_full_name: str, commit_sha: str | None):
-        run_name = f"{repo_full_name}:{(commit_sha or 'head')[:7]}"
-        with mlflow.start_run(run_name=run_name) as run:
-            mlflow.set_tags(
-                {
-                    "repo": repo_full_name,
-                    "commit_sha": commit_sha or "unknown",
-                    "service": "reponexus",
-                }
-            )
-            yield run.info.run_id
+        # Yield a dummy ID instead of crashing
+        yield "mlflow_bypassed_for_production"
 
     def log_metrics(self, metrics: dict[str, float]) -> None:
-        for key, value in metrics.items():
-            mlflow.log_metric(key, float(value))
+        pass
 
     def log_params(self, params: dict[str, str | int | float]) -> None:
-        mlflow.log_params(params)
+        pass
