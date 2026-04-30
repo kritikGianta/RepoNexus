@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +20,17 @@ class AnalysisService:
     async def create_run(self, repo_id: int, user_id: int, trigger_type: TriggerType) -> AnalysisRun:
         repo = await self._get_repo(repo_id, user_id)
 
-        # Cleanup Zombie Runs: Mark any existing stuck runs for this repo as FAILED
+        # 1. Check for truly active runs to prevent multiple concurrent tasks on free tier
+        active_stmt = select(AnalysisRun).where(
+            AnalysisRun.repo_id == repo.id,
+            AnalysisRun.status == AnalysisRunStatus.RUNNING,
+            AnalysisRun.created_at > datetime.now(timezone.utc) - timedelta(minutes=30)
+        )
+        active_run = (await self.session.execute(active_stmt)).scalars().first()
+        if active_run:
+            raise ForbiddenError("An analysis is already in progress for this repository. Please wait for it to complete.")
+
+        # 2. Cleanup Zombie Runs: Mark any existing stuck/queued runs for this repo as FAILED
         stuck_stmt = select(AnalysisRun).where(
             AnalysisRun.repo_id == repo.id,
             AnalysisRun.status.in_([AnalysisRunStatus.RUNNING, AnalysisRunStatus.QUEUED])
@@ -28,7 +38,7 @@ class AnalysisService:
         stuck_runs = (await self.session.execute(stuck_stmt)).scalars().all()
         for stuck in stuck_runs:
             stuck.status = AnalysisRunStatus.FAILED
-            stuck.error_message = "Analysis failed due to server timeout or out-of-memory crash."
+            stuck.error_message = "Analysis interrupted by a new run request or server restart."
             stuck.ended_at = datetime.now(timezone.utc)
 
         run = AnalysisRun(repo_id=repo.id, status=AnalysisRunStatus.QUEUED, trigger_type=trigger_type)
