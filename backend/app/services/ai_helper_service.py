@@ -9,13 +9,22 @@ from app.core.config import get_settings
 settings = get_settings()
 
 
+from app.core.ai_client import groq_manager
+
 def _llm(temperature: float = 0.3, max_tokens: int = 4096) -> ChatGroq:
-    return ChatGroq(
-        groq_api_key=settings.groq_api_key,
-        model_name=settings.groq_model_name,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
+    return groq_manager.get_client(temperature=temperature, max_tokens=max_tokens)
+
+def _invoke_safe(prompt: Any, temperature: float = 0.3, max_tokens: int = 4096):
+    """Internal helper to invoke Groq with key rotation."""
+    try:
+        llm = _llm(temperature=temperature, max_tokens=max_tokens)
+        return llm.invoke(prompt)
+    except Exception as e:
+        err = str(e).lower()
+        if ("rate_limit" in err or "429" in err) and groq_manager.rotate_key():
+            llm = _llm(temperature=temperature, max_tokens=max_tokens)
+            return llm.invoke(prompt)
+        raise e
 
 
 def generate_readme(repo_name: str, tree: list[str], sample_files: dict[str, str]) -> str:
@@ -43,8 +52,7 @@ def generate_readme(repo_name: str, tree: list[str], sample_files: dict[str, str
 
 Output ONLY the raw markdown content, no wrapping."""
 
-    llm = _llm(temperature=0.4, max_tokens=4096)
-    response = llm.invoke(prompt)
+    response = _invoke_safe(prompt, temperature=0.4, max_tokens=4096)
     return response.content
 
 
@@ -82,8 +90,7 @@ Include an overall quality score (1-10).
 
 Be specific, reference actual code from the diff, and be constructive."""
 
-    llm = _llm(temperature=0.2, max_tokens=4096)
-    response = llm.invoke(prompt)
+    response = _invoke_safe(prompt, temperature=0.2, max_tokens=4096)
     return response.content
 
 
@@ -113,8 +120,8 @@ def generate_code_fix(file_path: str, original_code: str, debt_title: str, debt_
 - Do NOT include markdown code fences or any explanation outside the code
 - Output the raw fixed source code only"""
 
-    llm = _llm(temperature=0.1, max_tokens=8000)
-    response = llm.invoke(prompt)
+    response = _invoke_safe(prompt, temperature=0.1, max_tokens=8000)
+    return response.content
     # Strip markdown fences if the model adds them anyway
     content = response.content.strip()
     if content.startswith("```"):
@@ -143,8 +150,7 @@ Always cite the specific file paths when referencing code.
 
 Provide a clear, helpful answer with code references."""
 
-    llm = _llm(temperature=0.3, max_tokens=2048)
-    response = llm.invoke(prompt)
+    response = _invoke_safe(prompt, temperature=0.3, max_tokens=2048)
     return response.content
 
 
@@ -162,7 +168,7 @@ Format the report using:
 - **Blockers**: None (unless implied by commit messages)
 
 Keep it concise and professional."""
-    return _llm(temperature=0.2, max_tokens=1000).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.2, max_tokens=1000).content
 
 
 def generate_interview_question(repo_name: str, project_context: str) -> str:
@@ -182,7 +188,7 @@ Output ONLY a valid JSON array matching this exact structure, with no markdown c
   {{"level": "Hard", "question": "..."}}
 ]"""
     # Use max_tokens=2000 since we're generating 5-8 questions
-    response = _llm(temperature=0.7, max_tokens=2000).invoke(prompt).content.strip()
+    response = _invoke_safe(prompt, temperature=0.7, max_tokens=2000).content.strip()
     if response.startswith("```json"):
         response = "\n".join(response.split("\n")[1:-1])
     elif response.startswith("```"):
@@ -208,7 +214,7 @@ The interview is regarding the following project structure and scope.
 Provide constructive, encouraging feedback on their answer. Highlight what they got right, and suggest areas they could expand on (like scalability, edge cases, or design patterns).
 Finally, give a score from 1 to 10 on the final line in this exact format: "Score: X/10"."""
     
-    response = _llm(temperature=0.4, max_tokens=800).invoke(prompt).content
+    response = _invoke_safe(prompt, temperature=0.4, max_tokens=800).content
     
     score = 0
     lines = response.strip().split("\n")
@@ -235,7 +241,7 @@ Instructions:
 - Return ONLY the complete modified file content
 - Do not change any actual logic, just add comments/docstrings
 - Output the raw code only, without markdown code fences"""
-    content = _llm(temperature=0.1, max_tokens=6000).invoke(prompt).content.strip()
+    content = _invoke_safe(prompt, temperature=0.1, max_tokens=6000).content.strip()
     if content.startswith("```"):
         content = "\n".join(content.split("\n")[1:-1]) if content.endswith("```") else "\n".join(content.split("\n")[1:])
     return content
@@ -257,7 +263,7 @@ The user has requested a code review and optimization lesson for the following f
 4. Provide the optimized code snippet.
 
 Use markdown. Be very human-like, empathetic, and encouraging. Avoid sounding like a strict textbook."""
-    return _llm(temperature=0.6, max_tokens=2500).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.6, max_tokens=2500).content
 
 
 def generate_local_setup_guide(repo_name: str, config_files_content: str) -> str:
@@ -285,7 +291,7 @@ Explain how to set up `.env` files if required, based on the codebase.
 Provide the exact terminal commands to install dependencies (`npm install`, `pip install -r requirements.txt`) and start the servers (`npm run dev`, `uvicorn`, etc.). If there is a frontend and a backend, give separate commands and terminal tabs for each.
 
 Keep the language accessible and structured, using code blocks for all terminal commands."""
-    return _llm(temperature=0.4, max_tokens=2000).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.4, max_tokens=2000).content
 
 
 def generate_architecture_diagram(repo_name: str, file_tree: str, readme_content: str) -> str:
@@ -315,7 +321,7 @@ STRICT RULES for valid Mermaid syntax:
 10. Do NOT output any explanatory text."""
     
     import re
-    response = _llm(temperature=0.2, max_tokens=2000).invoke(prompt).content.strip()
+    response = _invoke_safe(prompt, temperature=0.2, max_tokens=2000).content.strip()
     # Strip markdown fences if present
     if response.startswith("```mermaid"):
         response = "\n".join(response.split("\n")[1:-1])
@@ -357,7 +363,7 @@ Format:
   }}
 ]"""
     try:
-        response = _llm(temperature=0.1, max_tokens=2500).invoke(prompt).content.strip()
+        response = _invoke_safe(prompt, temperature=0.1, max_tokens=2500).content.strip()
         if response.startswith("```json"):
             response = "\n".join(response.split("\n")[1:-1])
         elif response.startswith("```"):
@@ -388,7 +394,7 @@ Format:
     "reasoning": "One-sentence explanation of the estimate"
   }}
 ]"""
-    response = _llm(temperature=0.1, max_tokens=2500).invoke(prompt).content.strip()
+    response = _invoke_safe(prompt, temperature=0.1, max_tokens=2500).content.strip()
     if response.startswith("```json"):
         response = "\n".join(response.split("\n")[1:-1])
     elif response.startswith("```"):
@@ -426,7 +432,7 @@ Generate a complete, publication-quality README.md with:
 
 Use badges where appropriate (e.g., ![Python](https://img.shields.io/badge/...)).
 Output ONLY the raw markdown. Do NOT wrap in code fences."""
-    return _llm(temperature=0.3, max_tokens=3000).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.3, max_tokens=3000).content
 
 
 def generate_pr_review(repo_name: str, pr_title: str, pr_body: str, diff_text: str) -> str:
@@ -449,7 +455,7 @@ Provide a thorough, constructive, and highly professional Markdown review.
 5. **Final Verdict**: State whether the PR is ready to merge, needs minor tweaks, or requires major revisions.
 
 Output ONLY the raw markdown. Do NOT wrap the entire response in a code fence."""
-    return _llm(temperature=0.2, max_tokens=3000).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.2, max_tokens=3000).content
 
 
 def generate_release_notes(repo_name: str, commits: list[dict]) -> str:
@@ -472,7 +478,7 @@ Follow this structure:
 4. Translate developer jargon into clear, readable bullets.
 
 Output ONLY the raw markdown. Do NOT wrap the entire response in a code fence."""
-    return _llm(temperature=0.3, max_tokens=2500).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.3, max_tokens=2500).content
 
 
 def chat_with_repo(repo_name: str, file_tree: str, message: str) -> str:
@@ -489,7 +495,7 @@ If the user asks where something is, point them to the most likely file paths. I
 User Question: {message}
 
 Provide your response in Markdown."""
-    return _llm(temperature=0.4, max_tokens=1500).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.4, max_tokens=1500).content
 
 def generate_contributing_guide(repo_name: str, file_tree: str, config_content: str) -> str:
     prompt = f"""You are a developer advocate writing a CONTRIBUTING.md guide for the open-source repository "{repo_name}".
@@ -516,7 +522,7 @@ Generate a clear, welcoming CONTRIBUTING.md with:
 9. Code style guidelines (infer from the tech stack)
 
 Output ONLY the raw markdown. Do NOT wrap in code fences."""
-    return _llm(temperature=0.3, max_tokens=2500).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.3, max_tokens=2500).content
 
 
 def generate_api_documentation(repo_name: str, route_files_content: str) -> str:
@@ -538,7 +544,7 @@ Generate clean API documentation in Markdown with:
 4. Include example curl commands for key endpoints
 
 Output ONLY the raw markdown. Do NOT wrap in code fences."""
-    return _llm(temperature=0.2, max_tokens=3000).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.2, max_tokens=3000).content
 
 
 def generate_ci_cd_pipeline(repo_name: str, file_tree: str, config_content: str) -> str:
@@ -572,7 +578,7 @@ Provide the complete, secure, and production-ready GitHub Actions YAML code bloc
 - Running linters and tests
 
 Output ONLY the raw markdown containing both sections. Do NOT wrap the entire response in a code fence."""
-    return _llm(temperature=0.2, max_tokens=3500).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.2, max_tokens=3500).content
 
 
 def generate_issue_implementation_plan(repo_name: str, issue_title: str, issue_body: str, file_tree: str) -> str:
@@ -595,7 +601,7 @@ Generate a detailed, step-by-step Implementation Plan / Scaffold in Markdown for
 5. **Testing Strategy**: How the developer should verify the implementation.
 
 Output ONLY the raw markdown. Do NOT wrap the entire response in a code fence."""
-    return _llm(temperature=0.3, max_tokens=3000).invoke(prompt).content
+    return _invoke_safe(prompt, temperature=0.3, max_tokens=3000).content
 
 async def generate_zombie_scan(files: dict[str, str]) -> list[dict]:
     content = ""
@@ -615,7 +621,7 @@ Files:
 {content}
 """
     try:
-        res = _llm(temperature=0).invoke(prompt).content.strip()
+        res = _invoke_safe(prompt, temperature=0).content.strip()
         if res.startswith("```json"): res = res[7:-3].strip()
         elif res.startswith("```"): res = res[3:-3].strip()
         return json.loads(res)
@@ -640,7 +646,7 @@ Files:
 {content}
 """
     try:
-        res = _llm(temperature=0).invoke(prompt).content.strip()
+        res = _invoke_safe(prompt, temperature=0).content.strip()
         if res.startswith("```json"): res = res[7:-3].strip()
         elif res.startswith("```"): res = res[3:-3].strip()
         return json.loads(res)
@@ -665,7 +671,7 @@ Files:
 {content}
 """
     try:
-        res = _llm(temperature=0).invoke(prompt).content.strip()
+        res = _invoke_safe(prompt, temperature=0).content.strip()
         if res.startswith("```json"): res = res[7:-3].strip()
         elif res.startswith("```"): res = res[3:-3].strip()
         return json.loads(res)

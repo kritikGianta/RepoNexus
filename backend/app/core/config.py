@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     encryption_key: str = Field(alias="ENCRYPTION_KEY")
 
     groq_api_key: str = Field(alias="GROQ_API_KEY")
+    groq_api_key_2: str | None = Field(default=None, alias="GROQ_API_KEY_2")
     groq_model_name: str = "llama-3.3-70b-versatile"
 
     mlflow_tracking_uri: str = Field(alias="MLFLOW_TRACKING_URI")

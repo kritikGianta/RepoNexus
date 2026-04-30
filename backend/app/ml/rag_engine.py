@@ -17,16 +17,14 @@ Keep output practical and specific to the provided code context.
 """.strip()
 
 
+from app.core.ai_client import groq_manager
+
 class RAGEngine:
     def __init__(self) -> None:
-        self.model = ChatGroq(
-            api_key=settings.groq_api_key,
-            model_name=settings.groq_model_name,
-            temperature=0.2,
-            max_tokens=1200,
-            max_retries=0,
-            timeout=15,
-        )
+        pass
+
+    def _get_client(self):
+        return groq_manager.get_client(temperature=0.2, max_tokens=1200, timeout=20)
 
     def generate_explanation_and_fix(self, finding: DebtFindingDraft, context_chunks: list[str]) -> tuple[str, str]:
         context = "\n\n".join(context_chunks[:4])
@@ -47,8 +45,19 @@ WHY:\n<explanation>
 FIX:\n<refactor suggestion with example code if possible>
 """.strip()
 
+        def _do_invoke(client):
+            return client.invoke([SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_prompt)])
+
         try:
-            response = self.model.invoke([SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_prompt)])
+            try:
+                response = _do_invoke(self._get_client())
+            except Exception as e:
+                err = str(e).lower()
+                if ("rate_limit" in err or "429" in err) and groq_manager.rotate_key():
+                    response = _do_invoke(self._get_client())
+                else:
+                    raise e
+            
             text = str(response.content)
         except Exception:
             return (
