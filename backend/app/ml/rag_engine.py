@@ -24,6 +24,8 @@ class RAGEngine:
             model_name=settings.groq_model_name,
             temperature=0.2,
             max_tokens=1200,
+            max_retries=0,
+            timeout=15,
         )
 
     def generate_explanation_and_fix(self, finding: DebtFindingDraft, context_chunks: list[str]) -> tuple[str, str]:

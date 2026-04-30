@@ -27,16 +27,30 @@ from app.services.ai_helper_service import (
 import sys
 import os
 import json
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../own_models")))
+
+# Resolve own_models path robustly: walk up from this file to find the project root
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.abspath(os.path.join(_this_dir, "..", "..", "..", ".."))
+_own_models_path = os.path.join(_project_root, "own_models")
+if os.path.isdir(_own_models_path) and _own_models_path not in sys.path:
+    sys.path.insert(0, _own_models_path)
+
+zombie_scanner = None
+security_scanner = None
+cost_optimizer = None
+migration_analyzer = None
+issue_triage_inference = None
+debt_scorer = None
+
 try:
-    import zombie_scanner
-    import security_scanner
-    import cost_optimizer
-    import migration_analyzer
-    import issue_triage_inference
-    import debt_scorer
-except ImportError:
-    pass
+    import zombie_scanner  # type: ignore
+    import security_scanner  # type: ignore
+    import cost_optimizer  # type: ignore
+    import migration_analyzer  # type: ignore
+    import issue_triage_inference  # type: ignore
+    import debt_scorer  # type: ignore
+except ImportError as _import_err:
+    pass  # Graceful fallback: endpoints will use Groq LLM when local models are unavailable
 from app.services.github_service import GitHubService
 from app.services.rag_chat_service import embed_repository, query_repository
 
@@ -824,30 +838,48 @@ async def generate_security_audit(
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
-    import json
-    import importlib
-    import security_scanner
-    importlib.reload(security_scanner) # Ensure we use the latest scanner logic
-
     github, repo = await _get_github_and_repo(repo_id, current_user, session)
     try:
         tree = github.get_repo_tree(repo.full_name, repo.default_branch)
         target_files = ["package.json", "requirements.txt", "docker-compose.yml", "Dockerfile", ".env", ".env.example", "config.py", "settings.py"]
         
         all_issues = []
-        for file_pattern in target_files:
-            matching_files = [f for f in tree if f.lower().endswith(file_pattern.lower())]
-            for actual_name in matching_files[:5]:
+
+        if security_scanner is not None:
+            # Hybrid: use local regex-based scanner (zero API cost)
+            for file_pattern in target_files:
+                matching_files = [f for f in tree if f.lower().endswith(file_pattern.lower())]
+                for actual_name in matching_files[:5]:
+                    try:
+                        content, _ = github.get_file_content(repo.full_name, actual_name, repo.default_branch)
+                        raw_json = security_scanner.scan(content, actual_name)
+                        file_issues = json.loads(raw_json)
+                        all_issues.extend(file_issues)
+                    except Exception:
+                        continue
+        else:
+            # Fallback: use Groq LLM for security analysis
+            config_content = ""
+            for file_pattern in target_files:
+                matching_files = [f for f in tree if f.lower().endswith(file_pattern.lower())]
+                for actual_name in matching_files[:3]:
+                    try:
+                        content, _ = github.get_file_content(repo.full_name, actual_name, repo.default_branch)
+                        config_content += f"--- {actual_name} ---\n{content[:2000]}\n\n"
+                    except Exception:
+                        continue
+            if config_content:
+                raw = generate_security_scan(repo.full_name, config_content)
                 try:
-                    content, _ = github.get_file_content(repo.full_name, actual_name, repo.default_branch)
-                    raw_json = security_scanner.scan(content, actual_name)
-                    file_issues = json.loads(raw_json)
-                    # Filter out the "No issues" low-severity filler if we found real ones
-                    all_issues.extend(file_issues)
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        all_issues = parsed
+                    else:
+                        all_issues = [{"severity": "Low", "file": "Project", "issue": raw[:500], "fix": "Review findings above."}]
                 except Exception:
-                    continue
+                    all_issues = [{"severity": "Low", "file": "Project", "issue": raw[:500], "fix": "Review findings above."}]
         
-        # If multiple files were scanned, filter out the placeholder "Low" findings if any High/Medium exist
+        # Filter out placeholder "Low" findings if any High/Medium exist
         has_real_issues = any(i["severity"] in ["Critical", "High", "Medium"] for i in all_issues)
         if has_real_issues:
             all_issues = [i for i in all_issues if i["severity"] != "Low"]
@@ -1143,7 +1175,12 @@ async def analyze_zombie_code(
                 sample_files[path] = content
             except Exception:
                 continue
-        issues = zombie_scanner.scan(sample_files)
+
+        # Hybrid: try local AST model first, fallback to Groq LLM
+        if zombie_scanner is not None:
+            issues = zombie_scanner.scan(sample_files)
+        else:
+            issues = await generate_zombie_scan(sample_files)
         return {"issues": issues}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Zombie scan failed: {exc}") from exc
@@ -1165,7 +1202,12 @@ async def analyze_migration_risk(
                 sample_files[path] = content
             except Exception:
                 continue
-        risks = migration_analyzer.scan(sample_files)
+
+        # Hybrid: try local regex model first, fallback to Groq LLM
+        if migration_analyzer is not None:
+            risks = migration_analyzer.scan(sample_files)
+        else:
+            risks = await generate_migration_risk(sample_files)
         return {"risks": risks}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Migration risk analysis failed: {exc}") from exc
@@ -1187,7 +1229,12 @@ async def analyze_cost_optimization(
                 sample_files[path] = content
             except Exception:
                 continue
-        issues = cost_optimizer.scan(sample_files)
+
+        # Hybrid: try local AST model first, fallback to Groq LLM
+        if cost_optimizer is not None:
+            issues = cost_optimizer.scan(sample_files)
+        else:
+            issues = await generate_cost_optimization(sample_files)
         return {"issues": issues}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Cost optimization failed: {exc}") from exc
@@ -1219,7 +1266,23 @@ async def score_repo_debt(
             except Exception:
                 continue
 
-        scored = debt_scorer.score_files(sample_files)
+        # Hybrid: try local XGBoost model first, fallback to heuristic scoring
+        if debt_scorer is not None:
+            scored = debt_scorer.score_files(sample_files)
+        else:
+            # Lightweight heuristic fallback when XGBoost model is unavailable
+            scored = []
+            for path, code in sample_files.items():
+                lines = code.splitlines()
+                total = max(len(lines), 1)
+                todo_count = sum(1 for l in lines if any(t in l.upper() for t in ["TODO", "FIXME", "HACK", "XXX"]))
+                long_lines = sum(1 for l in lines if len(l) > 120)
+                comment_ratio = sum(1 for l in lines if l.strip().startswith(("#", "//"))) / total
+                raw_score = min(100, (todo_count * 8) + (long_lines * 2) + max(0, (0.05 - comment_ratio) * 200) + max(0, (total - 300) * 0.1))
+                severity = "Critical" if raw_score >= 75 else "High" if raw_score >= 50 else "Medium" if raw_score >= 25 else "Low"
+                scored.append({"file": path, "debt_score": round(raw_score, 1), "severity": severity, "advice": f"{severity} debt level detected via heuristic analysis."})
+            scored.sort(key=lambda r: r["debt_score"], reverse=True)
+
         avg_debt = sum(r["debt_score"] for r in scored) / max(len(scored), 1)
         health_score = round(100 - avg_debt, 1)
         return {
@@ -1233,3 +1296,4 @@ async def score_repo_debt(
         }
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Debt scoring failed: {exc}") from exc
+
