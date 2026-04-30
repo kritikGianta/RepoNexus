@@ -27,7 +27,7 @@ class CodebaseEmbedder:
             try:
                 self.embeddings = HuggingFaceEmbeddings(model_name=settings.embedding_model_name)
                 self.available = True
-            except ImportError:
+            except Exception:
                 self.available = False
                 self.embeddings = None
         self.splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
