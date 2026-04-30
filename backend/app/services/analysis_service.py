@@ -19,6 +19,18 @@ class AnalysisService:
 
     async def create_run(self, repo_id: int, user_id: int, trigger_type: TriggerType) -> AnalysisRun:
         repo = await self._get_repo(repo_id, user_id)
+
+        # Cleanup Zombie Runs: Mark any existing stuck runs for this repo as FAILED
+        stuck_stmt = select(AnalysisRun).where(
+            AnalysisRun.repo_id == repo.id,
+            AnalysisRun.status.in_([AnalysisRunStatus.RUNNING, AnalysisRunStatus.QUEUED])
+        )
+        stuck_runs = (await self.session.execute(stuck_stmt)).scalars().all()
+        for stuck in stuck_runs:
+            stuck.status = AnalysisRunStatus.FAILED
+            stuck.error_message = "Analysis failed due to server timeout or out-of-memory crash."
+            stuck.ended_at = datetime.now(timezone.utc)
+
         run = AnalysisRun(repo_id=repo.id, status=AnalysisRunStatus.QUEUED, trigger_type=trigger_type)
         self.session.add(run)
         await self.session.commit()

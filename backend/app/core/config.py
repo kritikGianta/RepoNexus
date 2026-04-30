@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     default_plan_tier: str = Field(default="free", alias="DEFAULT_PLAN_TIER")
     celery_task_time_limit_seconds: int = Field(default=7200, alias="CELERY_TASK_TIME_LIMIT_SECONDS")
-    max_files_per_analysis: int = Field(default=1200, alias="MAX_FILES_PER_ANALYSIS")
+    max_files_per_analysis: int = Field(default=200, alias="MAX_FILES_PER_ANALYSIS")
 
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     supported_extensions: List[str] = [

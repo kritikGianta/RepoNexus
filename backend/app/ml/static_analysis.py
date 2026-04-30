@@ -16,7 +16,7 @@ class StaticAnalyzer:
             file_path = Path(tmp) / "target.py"
             file_path.write_text(content, encoding="utf-8")
 
-            issues.extend(self._run_pylint(file_path))
+            # Disabled pylint to save memory on free tier
             issues.extend(self._run_flake8(file_path))
 
         return issues
