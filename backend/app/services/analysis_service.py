@@ -77,12 +77,14 @@ class AnalysisService:
         if commit_sha:
             run.commit_sha = commit_sha
         await self.session.commit()
+        await self.session.refresh(run)
 
     async def mark_run_failed(self, run: AnalysisRun, error_message: str) -> None:
         run.status = AnalysisRunStatus.FAILED
         run.error_message = error_message[:2000]
         run.ended_at = datetime.now(timezone.utc)
         await self.session.commit()
+        await self.session.refresh(run)
 
     async def persist_run_results(
         self,
