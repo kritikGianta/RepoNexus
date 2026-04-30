@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic-settings==2.7.1
@@ -15,6 +16,8 @@ langchain==0.3.15
 langchain-community==0.3.15
 langchain-groq==0.2.3
 langchain-text-splitters==0.3.5
+torch
+torchvision
 faiss-cpu==1.9.0.post1
 sentence-transformers==2.7.0
 datasets
