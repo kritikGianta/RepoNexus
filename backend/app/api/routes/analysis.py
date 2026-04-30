@@ -26,10 +26,8 @@ async def trigger_analysis_run(
     service = AnalysisService(session)
     try:
         run = await service.create_run(repo_id=repo_id, user_id=current_user.id, trigger_type=trigger_type)
-        if settings.environment in ("development", "test"):
-            background_tasks.add_task(_run_analysis, run.id)
-        else:
-            run_analysis_task.delay(run.id)
+        # For free-tier deployment, always use FastAPI background tasks instead of Celery/Redis
+        background_tasks.add_task(_run_analysis, run.id)
         return TriggerAnalysisResponse(run_id=run.id, status=run.status)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
