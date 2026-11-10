@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from github import Github, GithubException
+from github import Auth, Github, GithubException
 
 
 @dataclass
@@ -16,7 +16,9 @@ class RepositoryFile:
 
 class GitHubService:
     def __init__(self, access_token: str) -> None:
-        self.client = Github(access_token, timeout=30, retry=3)
+        # An empty token yields anonymous access (public repositories, low rate limit).
+        auth = Auth.Token(access_token) if access_token else None
+        self.client = Github(auth=auth, timeout=30, retry=3, per_page=100)
 
     def list_user_repositories(self) -> list[dict]:
         repos = self.client.get_user().get_repos(sort="updated")
