@@ -1,103 +1,127 @@
+# ==========================================================
+# RepoNexus — local stack (Docker Desktop)
+# ==========================================================
+#   docker compose up -d --build     build & start everything
+#   docker compose logs -f backend   follow API logs
+#   docker compose down              stop (data is kept)
+#   docker compose down -v           stop and wipe all data
+#
+# App:     http://localhost:8080
+# API:     http://localhost:8000/docs
+# MLflow:  http://localhost:5000
+# ==========================================================
 
+name: reponexus
 
-# ==========================================================
-# DebtLens — Docker Compose (Local Development & Testing)
-# ==========================================================
-# Usage:
-#   docker compose up --build        (first time / after code changes)
-#   docker compose up                (subsequent runs)
-#   docker compose down              (stop everything)
-#   docker compose down -v           (stop + wipe volumes)
-# ==========================================================
+x-backend-env: &backend-env
+  ENVIRONMENT: production
+  DATABASE_URL: postgresql+asyncpg://reponexus:${POSTGRES_PASSWORD:-reponexus}@postgres:5432/reponexus
+  REDIS_URL: redis://redis:6379/0
+  TASK_EXECUTION_MODE: celery
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
+  CORS_ORIGINS: http://localhost:8080,http://localhost:5175
+  GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8080/auth/github/callback}
 
 services:
-  # ── Redis (lightweight, required for Celery) ──────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reponexus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reponexus}
+      POSTGRES_DB: reponexus
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reponexus -d reponexus"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
-  # ── MLflow (experiment tracking) ──────────────────────
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.20.1
     restart: unless-stopped
     command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri sqlite:///mlflow.db
-      --default-artifact-root /mlruns
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
     ports:
       - "5000:5000"
     volumes:
-      - mlflow_data:/mlruns
+      - mlflow_data:/mlflow
 
-  # ── Backend (FastAPI) ─────────────────────────────────
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    image: reponexus-backend:local
     restart: unless-stopped
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
     environment:
-      # Override specific vars for Docker networking
-      REDIS_URL: redis://redis:6379/0
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      API_BASE_URL: http://localhost:8000
-      CORS_ORIGINS: http://localhost,http://localhost:80,http://localhost:5175
-      environment: production
+      <<: *backend-env
+      RUN_MIGRATIONS: "true"
     depends_on:
-      - redis
-      - mlflow
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
     ports:
       - "8000:8000"
     volumes:
-      # Persist RAG embeddings and SQLite DB across restarts
+      - backend_data:/app/data
+
+  worker:
+    image: reponexus-backend:local
+    restart: unless-stopped
+    command: ["celery", "-A", "app.tasks.celery_app:celery_app", "worker", "--loglevel=INFO", "--queues=analysis", "--concurrency=2"]
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      <<: *backend-env
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
       - backend_data:/app/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "celery -A app.tasks.celery_app:celery_app inspect ping -d celery@$$HOSTNAME --timeout 5 || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
 
-  # ── Worker (Celery — background analysis jobs) ────────
-  worker:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile.worker
-    restart: unless-stopped
-    env_file:
-      - ./backend/.env
-    environment:
-      REDIS_URL: redis://redis:6379/0
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      API_BASE_URL: http://localhost:8000
-      CORS_ORIGINS: http://localhost,http://localhost:80,http://localhost:5175
-      environment: production
-    depends_on:
-      - backend
-      - redis
-      - mlflow
-
-  # ── Frontend (Nginx + React) ──────────────────────────
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: /api/v1
-        VITE_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+    image: reponexus-frontend:local
     restart: unless-stopped
-    ports:
-      - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
 
 volumes:
+  postgres_data:
   redis_data:
   mlflow_data:
   backend_data:

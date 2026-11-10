@@ -21,6 +21,7 @@ cryptography==44.0.0
 # ── Integrations ───────────────────────────────────
 PyGithub==2.5.0
 celery[redis]==5.4.0
+kombu==5.4.2
 redis==5.2.1
 langchain-groq==0.2.3
 mlflow-skinny==2.20.1
