@@ -1,62 +1,51 @@
-# RepoNexus Frontend
+# RepoNexus frontend
 
-React + Vite + TypeScript frontend for the RepoNexus repository intelligence platform.
+React 18 + Vite + TypeScript single-page app. In Docker it is served by Nginx on
+http://localhost:8080, which also proxies `/api` to the backend.
 
-## Features
-
-- **GitHub OAuth Login** — Authenticate via GitHub to connect repositories
-- **Dashboard** — Overview of connected repos, debt scores, and alerts
-- **Repositories** — Connect/disconnect GitHub repos, register webhooks
-- **Analysis Runs** — Trigger analysis, monitor progress with auto-polling
-- **Debts** — Browse, filter, and review AI-discovered technical debt with code snippets
-- **Trends** — Visualize debt score evolution over time with interactive charts
-- **Settings** — Profile view, API config, logout
-
-## Tech Stack
-
-- React 18, TypeScript, Vite 5
-- TailwindCSS 3 (custom dark theme)
-- React Query (TanStack) for data fetching
-- Zustand for auth state management
-- Recharts for data visualization
-- Lucide React for icons
-
-## Setup
+## Develop
 
 ```bash
-# Install dependencies
 npm install
-
-# Create .env from template
-cp .env.example .env
-# Edit .env with your backend URL and GitHub Client ID
-
-# Development server
-npm run dev
-
-# Production build
-npm run build
+npm run dev        # http://localhost:5175, proxies /api to http://localhost:8000
+npm run build      # type-check (tsc -b) and production build
 npm run preview
 ```
 
-## Environment Variables
+The only build-time setting is `VITE_API_URL` (default `/api/v1`, which works with both the Vite proxy
+and Nginx). The GitHub OAuth client ID is never needed in the browser: the backend builds the
+authorize URL.
 
-| Variable               | Description                    | Default                          |
-|------------------------|--------------------------------|----------------------------------|
-| `VITE_API_URL`         | Backend API base URL           | `http://localhost:8000/api/v1`   |
-| `VITE_GITHUB_CLIENT_ID`| GitHub OAuth App Client ID    | —                                |
+## Structure
 
-## Deployment
+```
+src/
+├── pages/                 one file per route (lazy-loaded); LandingPage is the public home page
+├── components/
+│   ├── landing/           landing-page motion primitives and copy
+│   ├── Layout.tsx         authenticated app shell (sidebar, command palette, setup banner)
+│   └── SetupBanner.tsx    shows which API keys are missing (reads /api/v1/system/status)
+├── lib/api.ts             fetch wrapper: auth header, 401 handling, error toasts
+├── stores/                Zustand stores (auth token, history)
+└── types/                 API contracts
+```
 
-### Vercel (recommended for free hosting)
-1. Push to GitHub
-2. Connect repo to Vercel
-3. Set environment variables in Vercel dashboard
-4. Framework: Vite, Build: `npm run build`, Output: `dist`
+## Landing page design
 
-### Netlify
-1. Push to GitHub
-2. New site → connect repo
-3. Build command: `npm run build`
-4. Publish directory: `dist`
-5. Add `_redirects` file for SPA routing: `/* /index.html 200`
+The home page uses its own palette (`nx-*` colors in `tailwind.config.js`: paper `#f2f0e7`,
+ink `#181a17`, acid `#dce87a`, olive `#a4b342`) with Hanken Grotesk for display type and Fraunces
+italic for accents. Motion primitives live in `src/components/landing/motion.tsx`:
+
+| Primitive | Effect |
+|-----------|--------|
+| `LineRise` | headline words rise out of a clipped line, staggered 120 ms |
+| `Reveal` | content rises 56 px and un-blurs as it enters the viewport |
+| `WipeImage` | image is wiped in from the bottom while settling from 1.18× zoom |
+| `ScrollStatement` | statement words brighten as the paragraph scrolls past |
+| `Marquee` | seamless ticker of tool names (pauses on hover) |
+| `Signoff` | oversized footer wordmark whose letters spring up and lift on hover |
+
+All motion uses `cubic-bezier(.32,.72,0,1)` (springy elements use `cubic-bezier(.34,1.56,.64,1)`) and
+is disabled for users who prefer reduced motion. Illustrations are SVGs in `public/landing/`.
+
+The authenticated app (`/app/*`) keeps its existing light dashboard theme.
