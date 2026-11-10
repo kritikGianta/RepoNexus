@@ -57,6 +57,7 @@ export default {
         'fade-in': 'fadeIn 0.4s ease-out',
         'slide-up': 'slideUp 0.35s ease-out',
         'marquee': 'marquee 38s linear infinite',
+        'marquee-slow': 'marquee 80s linear infinite',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
       transitionTimingFunction: {

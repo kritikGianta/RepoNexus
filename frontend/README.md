@@ -42,7 +42,7 @@ italic for accents. Motion primitives live in `src/components/landing/motion.tsx
 | `Reveal` | content rises 56 px and un-blurs as it enters the viewport |
 | `WipeImage` | image is wiped in from the bottom while settling from 1.18× zoom |
 | `ScrollStatement` | statement words brighten as the paragraph scrolls past |
-| `Marquee` | seamless ticker of tool names (pauses on hover) |
+| `Marquee` | seamless ticker of tool names (pauses on hover; slows down instead of stopping with reduced motion) |
 | `Signoff` | oversized footer wordmark whose letters spring up and lift on hover |
 
 All motion uses `cubic-bezier(.32,.72,0,1)` (springy elements use `cubic-bezier(.34,1.56,.64,1)`) and

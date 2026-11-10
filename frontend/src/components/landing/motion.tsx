@@ -155,7 +155,8 @@ export function Signoff({ word, className = '' }: { word: string; className?: st
   )
 }
 
-/** Infinite horizontal ticker; content is duplicated so the loop is seamless. */
+/** Infinite horizontal ticker; content is duplicated so the loop is seamless.
+ *  With reduced motion it keeps drifting slowly instead of freezing on a cut-off item. */
 export function Marquee({ items, className = '' }: { items: string[]; className?: string }) {
   const row = (hidden: boolean) => (
     <div className="flex shrink-0 items-center" aria-hidden={hidden}>
@@ -169,7 +170,7 @@ export function Marquee({ items, className = '' }: { items: string[]; className?
   )
   return (
     <div className={`overflow-hidden ${className}`}>
-      <div className="flex w-max animate-marquee motion-reduce:animate-none hover:[animation-play-state:paused]">
+      <div className="flex w-max animate-marquee motion-reduce:animate-marquee-slow hover:[animation-play-state:paused]">
         {row(false)}
         {row(true)}
       </div>
