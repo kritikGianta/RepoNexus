@@ -4,28 +4,40 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
 .venv/
 venv/
 
-# Build and env
+# Environment (templates are committed)
 .env
 .env.*
+!.env.example
+
+# Local data
+*.db
+*.sqlite3
+backend/data/
+backend/rag_stores/
+backend/legacy_local_db/
+mlruns/
+artifacts/
+
+# Logs / coverage
 *.log
 coverage.xml
 htmlcov/
 
-# IDE
+# IDE / OS
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
 
 # Node
 node_modules/
 dist/
+*.tsbuildinfo
 
-# MLflow and artifacts
-mlruns/
-artifacts/
-
-# Ignore large ML models
+# Large ML weights
 model.safetensors
 scratch/
