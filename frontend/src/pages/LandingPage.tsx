@@ -144,7 +144,7 @@ function Hero() {
         </h1>
 
         <div className="mt-10 grid gap-10 md:grid-cols-[minmax(0,1fr)_320px] md:items-end">
-          <Reveal delay={0.5} className="max-w-[640px]">
+          <Reveal immediate delay={0.5} className="max-w-[640px]">
             <p className="text-lg leading-relaxed text-nx-ink/80 md:text-xl">
               RepoNexus was built because technical debt shouldn&apos;t be a black box. It&apos;s a suite of 18
               intelligent tools that read your repo like a human engineer would.
@@ -167,7 +167,7 @@ function Hero() {
             </div>
           </Reveal>
 
-          <Reveal delay={0.65}>
+          <Reveal immediate delay={0.65}>
             <figure className="border-t border-nx-ink/30 pt-5">
               <blockquote className="font-fraunces text-xl italic leading-snug">
                 &ldquo;Technical debt should be visible, quantifiable, and easily resolvable.&rdquo;
@@ -524,7 +524,7 @@ function Footer() {
 export default function LandingPage() {
   return (
     <MotionConfig reducedMotion="user">
-      <div className="min-h-screen bg-nx-paper font-display text-nx-ink antialiased selection:bg-nx-acid selection:text-nx-ink">
+      <div className="min-h-screen overflow-x-clip bg-nx-paper font-display text-nx-ink antialiased selection:bg-nx-acid selection:text-nx-ink">
         <a
           href="#main"
           className="absolute -top-24 left-4 z-50 rounded bg-nx-ink px-4 py-3 text-white focus:top-2"

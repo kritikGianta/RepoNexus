@@ -13,17 +13,20 @@ export function Reveal({
   children,
   delay = 0,
   className,
+  immediate = false,
 }: {
   children: ReactNode
   delay?: number
   className?: string
+  /** Animate on mount instead of on scroll (for above-the-fold content). */
+  immediate?: boolean
 }) {
+  const shown = { opacity: 1, y: 0, filter: 'blur(0px)' }
   return (
     <motion.div
       className={className}
       initial={{ opacity: 0, y: 56, filter: 'blur(8px)' }}
-      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      viewport={VIEWPORT}
+      {...(immediate ? { animate: shown } : { whileInView: shown, viewport: VIEWPORT })}
       transition={{ duration: 1, ease: EASE, delay }}
     >
       {children}
