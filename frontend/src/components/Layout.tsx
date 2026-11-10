@@ -10,6 +10,7 @@ import {
 import { cn } from '@/lib/utils'
 import AppNavbar from './AppNavbar'
 import CommandPalette from './CommandPalette'
+import SetupBanner from './SetupBanner'
 
 const navGroups = [
   {
@@ -174,6 +175,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           {/* Scrollable container */}
           <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-6 lg:py-8 flex-1 flex flex-col">
+              <SetupBanner className="mb-6" />
               {children}
             </div>
           </div>

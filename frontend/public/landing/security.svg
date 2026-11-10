@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 960" font-family="Hanken Grotesk, Arial, sans-serif">
+  <rect width="800" height="960" fill="#dce87a"/>
+  <text x="60" y="150" fill="#181a17" font-size="96" font-weight="900" letter-spacing="-5">Scan.</text>
+  <text x="60" y="230" fill="#3c4a10" font-size="64" font-style="italic" font-family="Fraunces, Georgia, serif">before it ships.</text>
+  <g font-size="18">
+    <rect x="60" y="300" width="680" height="120" rx="12" fill="#181a17"/>
+    <rect x="88" y="330" width="88" height="28" rx="14" fill="#e86f5c"/><text x="132" y="350" fill="#181a17" font-size="13" font-weight="800" text-anchor="middle">CRITICAL</text>
+    <text x="196" y="351" fill="#f2f0e7" font-weight="700">Hardcoded secret in config.py</text>
+    <text x="88" y="394" fill="#8b9084" font-family="JetBrains Mono, monospace" font-size="15">AWS_SECRET = "AKIA••••••••"  → move to env</text>
+    <rect x="60" y="440" width="680" height="120" rx="12" fill="#181a17"/>
+    <rect x="88" y="470" width="60" height="28" rx="14" fill="#e2c35a"/><text x="118" y="490" fill="#181a17" font-size="13" font-weight="800" text-anchor="middle">HIGH</text>
+    <text x="168" y="491" fill="#f2f0e7" font-weight="700">Outdated dependency: requests 2.19</text>
+    <text x="88" y="534" fill="#8b9084" font-family="JetBrains Mono, monospace" font-size="15">CVE-2018-18074 → upgrade to ≥ 2.31</text>
+    <rect x="60" y="580" width="680" height="120" rx="12" fill="#181a17"/>
+    <rect x="88" y="610" width="88" height="28" rx="14" fill="#a4b342"/><text x="132" y="630" fill="#181a17" font-size="13" font-weight="800" text-anchor="middle">MEDIUM</text>
+    <text x="196" y="631" fill="#f2f0e7" font-weight="700">subprocess call with shell=True</text>
+    <text x="88" y="674" fill="#8b9084" font-family="JetBrains Mono, monospace" font-size="15">scripts/deploy.py:42 → pass args as list</text>
+  </g>
+  <circle cx="660" cy="820" r="70" fill="none" stroke="#181a17" stroke-width="3"/>
+  <path d="M630 820 L652 842 L692 798" fill="none" stroke="#181a17" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,34 +1,44 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/Layout'
 import LandingPage from '@/pages/LandingPage'
-import LoginPage from '@/pages/LoginPage'
-import DashboardPage from '@/pages/DashboardPage'
-import RepositoriesPage from '@/pages/RepositoriesPage'
-import RunsPage from '@/pages/RunsPage'
-import DebtsPage from '@/pages/DebtsPage'
-import TrendsPage from '@/pages/TrendsPage'
-import SettingsPage from '@/pages/SettingsPage'
-import PRsPage from '@/pages/PRsPage'
-import ChatPage from '@/pages/ChatPage'
-import StandupPage from './pages/StandupPage'
-import InterviewPage from './pages/InterviewPage'
-import AutoDocsPage from './pages/AutoDocsPage'
-import TutorPage from './pages/TutorPage'
-import SetupGuidePage from './pages/SetupGuidePage'
-import DiagramPage from './pages/DiagramPage'
-import SecurityPage from './pages/SecurityPage'
-import IssuesPage from './pages/IssuesPage'
-import ReadmePage from './pages/ReadmePage'
-import ContributingPage from './pages/ContributingPage'
-import ApiDocsPage from './pages/ApiDocsPage'
-import CiCdPage from './pages/CiCdPage'
-import IssuePlanPage from './pages/IssuePlanPage'
-import ReleaseNotesPage from './pages/ReleaseNotesPage'
-import ZombieCodePage from './pages/ZombieCodePage'
-import MigrationRiskPage from './pages/MigrationRiskPage'
-import CostOptimizerPage from './pages/CostOptimizerPage'
-import DebtHealthPage from './pages/DebtHealthPage'
+
+const LoginPage = lazy(() => import('@/pages/LoginPage'))
+const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
+const RepositoriesPage = lazy(() => import('@/pages/RepositoriesPage'))
+const RunsPage = lazy(() => import('@/pages/RunsPage'))
+const DebtsPage = lazy(() => import('@/pages/DebtsPage'))
+const TrendsPage = lazy(() => import('@/pages/TrendsPage'))
+const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+const PRsPage = lazy(() => import('@/pages/PRsPage'))
+const ChatPage = lazy(() => import('@/pages/ChatPage'))
+const StandupPage = lazy(() => import('./pages/StandupPage'))
+const InterviewPage = lazy(() => import('./pages/InterviewPage'))
+const AutoDocsPage = lazy(() => import('./pages/AutoDocsPage'))
+const TutorPage = lazy(() => import('./pages/TutorPage'))
+const SetupGuidePage = lazy(() => import('./pages/SetupGuidePage'))
+const DiagramPage = lazy(() => import('./pages/DiagramPage'))
+const SecurityPage = lazy(() => import('./pages/SecurityPage'))
+const IssuesPage = lazy(() => import('./pages/IssuesPage'))
+const ReadmePage = lazy(() => import('./pages/ReadmePage'))
+const ContributingPage = lazy(() => import('./pages/ContributingPage'))
+const ApiDocsPage = lazy(() => import('./pages/ApiDocsPage'))
+const CiCdPage = lazy(() => import('./pages/CiCdPage'))
+const IssuePlanPage = lazy(() => import('./pages/IssuePlanPage'))
+const ReleaseNotesPage = lazy(() => import('./pages/ReleaseNotesPage'))
+const ZombieCodePage = lazy(() => import('./pages/ZombieCodePage'))
+const MigrationRiskPage = lazy(() => import('./pages/MigrationRiskPage'))
+const CostOptimizerPage = lazy(() => import('./pages/CostOptimizerPage'))
+const DebtHealthPage = lazy(() => import('./pages/DebtHealthPage'))
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-surface-300 border-t-surface-800" />
+    </div>
+  )
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => !!s.token)
@@ -38,6 +48,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <Suspense fallback={<PageFallback />}>
     <Routes>
       {/* Public */}
       <Route path="/" element={<LandingPage />} />
@@ -103,5 +114,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }

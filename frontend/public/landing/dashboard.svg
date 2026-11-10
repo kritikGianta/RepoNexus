@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" font-family="Hanken Grotesk, Arial, sans-serif">
+  <rect width="1200" height="720" rx="18" fill="#181a17"/>
+  <rect x="0" y="0" width="1200" height="52" rx="18" fill="#22251f"/>
+  <rect x="0" y="34" width="1200" height="18" fill="#22251f"/>
+  <circle cx="30" cy="26" r="6" fill="#e86f5c"/><circle cx="52" cy="26" r="6" fill="#e2c35a"/><circle cx="74" cy="26" r="6" fill="#a4b342"/>
+  <rect x="420" y="16" width="360" height="20" rx="10" fill="#2d3029"/>
+  <text x="600" y="31" fill="#8b9084" font-size="12" text-anchor="middle">localhost:8080/app</text>
+  <rect x="0" y="52" width="210" height="668" fill="#1d1f1b"/>
+  <text x="28" y="96" fill="#f2f0e7" font-size="20" font-weight="800" letter-spacing="-1">RepoNexus<tspan fill="#dce87a">.</tspan></text>
+  <g font-size="13" fill="#8b9084">
+    <rect x="16" y="122" width="178" height="34" rx="8" fill="#dce87a"/>
+    <text x="34" y="144" fill="#181a17" font-weight="700">Overview</text>
+    <text x="34" y="188">Repositories</text><text x="34" y="224">Analysis runs</text><text x="34" y="260">Debt items</text>
+    <text x="34" y="296">Trends</text><text x="34" y="332">PR Reviewer</text><text x="34" y="368">Code Chat</text>
+    <text x="34" y="404">Security audit</text><text x="34" y="440">Diagrams</text>
+  </g>
+  <text x="246" y="104" fill="#f2f0e7" font-size="28" font-weight="800" letter-spacing="-1.2">acme/payments-api</text>
+  <text x="246" y="128" fill="#8b9084" font-size="13">main · 184 files analyzed · 2 minutes ago</text>
+  <rect x="1030" y="84" width="140" height="40" rx="6" fill="#dce87a"/>
+  <text x="1100" y="109" fill="#181a17" font-size="14" font-weight="700" text-anchor="middle">Run analysis</text>
+  <rect x="246" y="152" width="214" height="118" rx="12" fill="#22251f" stroke="#2f332b"/>
+  <text x="268" y="182" fill="#8b9084" font-size="12" letter-spacing="1.5">DEBT SCORE</text>
+  <text x="268" y="238" fill="#dce87a" font-size="52" font-weight="800" letter-spacing="-2">38.4</text>
+  <text x="400" y="238" fill="#a4b342" font-size="13">▼ 12%</text>
+  <rect x="478" y="152" width="214" height="118" rx="12" fill="#22251f" stroke="#2f332b"/>
+  <text x="500" y="182" fill="#8b9084" font-size="12" letter-spacing="1.5">OPEN ITEMS</text>
+  <text x="500" y="238" fill="#f2f0e7" font-size="52" font-weight="800" letter-spacing="-2">127</text>
+  <rect x="710" y="152" width="214" height="118" rx="12" fill="#22251f" stroke="#2f332b"/>
+  <text x="732" y="182" fill="#8b9084" font-size="12" letter-spacing="1.5">EFFORT</text>
+  <text x="732" y="238" fill="#f2f0e7" font-size="52" font-weight="800" letter-spacing="-2">96h</text>
+  <rect x="942" y="152" width="228" height="118" rx="12" fill="#22251f" stroke="#2f332b"/>
+  <text x="964" y="182" fill="#8b9084" font-size="12" letter-spacing="1.5">SECURITY</text>
+  <text x="964" y="238" fill="#e86f5c" font-size="52" font-weight="800" letter-spacing="-2">4</text>
+  <text x="1004" y="238" fill="#8b9084" font-size="13">high severity</text>
+  <rect x="246" y="290" width="560" height="400" rx="12" fill="#22251f" stroke="#2f332b"/>
+  <text x="268" y="324" fill="#f2f0e7" font-size="16" font-weight="700">Debt trend · 90 days</text>
+  <g stroke="#2f332b"><line x1="268" y1="380" x2="784" y2="380"/><line x1="268" y1="460" x2="784" y2="460"/><line x1="268" y1="540" x2="784" y2="540"/><line x1="268" y1="620" x2="784" y2="620"/></g>
+  <path d="M268 420 C330 400 360 450 420 430 S520 470 560 500 S650 560 700 548 S760 580 784 590 L784 650 L268 650 Z" fill="#dce87a" opacity=".12"/>
+  <path d="M268 420 C330 400 360 450 420 430 S520 470 560 500 S650 560 700 548 S760 580 784 590" fill="none" stroke="#dce87a" stroke-width="3.5"/>
+  <path d="M268 520 C340 510 380 540 440 530 S560 560 620 575 S720 600 784 612" fill="none" stroke="#8b9084" stroke-width="2" stroke-dasharray="6 6"/>
+  <circle cx="784" cy="590" r="7" fill="#dce87a"/>
+  <rect x="824" y="290" width="346" height="400" rx="12" fill="#22251f" stroke="#2f332b"/>
+  <text x="846" y="324" fill="#f2f0e7" font-size="16" font-weight="700">By category</text>
+  <g font-size="12" fill="#8b9084">
+    <text x="846" y="364">High complexity</text><rect x="846" y="372" width="300" height="10" rx="5" fill="#2d3029"/><rect x="846" y="372" width="236" height="10" rx="5" fill="#dce87a"/>
+    <text x="846" y="414">Code duplication</text><rect x="846" y="422" width="300" height="10" rx="5" fill="#2d3029"/><rect x="846" y="422" width="180" height="10" rx="5" fill="#dce87a"/>
+    <text x="846" y="464">Missing tests</text><rect x="846" y="472" width="300" height="10" rx="5" fill="#2d3029"/><rect x="846" y="472" width="150" height="10" rx="5" fill="#a4b342"/>
+    <text x="846" y="514">Security smells</text><rect x="846" y="522" width="300" height="10" rx="5" fill="#2d3029"/><rect x="846" y="522" width="96" height="10" rx="5" fill="#e86f5c"/>
+    <text x="846" y="564">Tight coupling</text><rect x="846" y="572" width="300" height="10" rx="5" fill="#2d3029"/><rect x="846" y="572" width="72" height="10" rx="5" fill="#a4b342"/>
+    <text x="846" y="614">Dead code</text><rect x="846" y="622" width="300" height="10" rx="5" fill="#2d3029"/><rect x="846" y="622" width="54" height="10" rx="5" fill="#8b9084"/>
+  </g>
+</svg>

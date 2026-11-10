@@ -4,6 +4,16 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Landing page palette (paper / ink / acid)
+        nx: {
+          paper: '#f2f0e7',
+          sand:  '#e7e5da',
+          ink:   '#181a17',
+          muted: '#5e6258',
+          line:  '#bbbfb1',
+          acid:  '#dce87a',
+          olive: '#a4b342',
+        },
         brand: {
           50:  '#eff6ff',
           100: '#dbeafe',
@@ -34,6 +44,8 @@ export default {
       fontFamily: {
         sans: ['Geist', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
         serif: ['Newsreader', 'Georgia', 'serif'],
+        display: ['"Hanken Grotesk"', 'Arial', 'sans-serif'],
+        fraunces: ['Fraunces', 'Georgia', 'serif'],
         mono: ['Geist Mono', 'JetBrains Mono', 'Fira Code', 'monospace'],
       },
       boxShadow: {
@@ -44,9 +56,18 @@ export default {
       animation: {
         'fade-in': 'fadeIn 0.4s ease-out',
         'slide-up': 'slideUp 0.35s ease-out',
+        'marquee': 'marquee 38s linear infinite',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
+      transitionTimingFunction: {
+        'nx': 'cubic-bezier(.32,.72,0,1)',
+        'nx-spring': 'cubic-bezier(.34,1.56,.64,1)',
+      },
       keyframes: {
+        marquee: {
+          '0%':   { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
         fadeIn: {
           '0%':   { opacity: '0', transform: 'translateY(6px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },

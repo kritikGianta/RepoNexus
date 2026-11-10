@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 960" font-family="Hanken Grotesk, Arial, sans-serif">
+  <rect width="800" height="960" fill="#e7e5da"/>
+  <rect x="60" y="80" width="680" height="560" rx="14" fill="#f8f7f1" stroke="#cfd1c5"/>
+  <text x="92" y="128" fill="#5e6258" font-size="15" font-family="JetBrains Mono, monospace">PR #128 · fix/auth-token-expiry</text>
+  <rect x="92" y="148" width="616" height="1" fill="#cfd1c5"/>
+  <g font-family="JetBrains Mono, monospace" font-size="17">
+    <text x="92" y="196" fill="#9a9e92">1</text><text x="132" y="196" fill="#181a17">export function <tspan fill="#5a6b1e" font-weight="700">verifyToken</tspan>(token) {</text>
+    <rect x="80" y="214" width="640" height="38" fill="#f6dcd5"/>
+    <text x="92" y="240" fill="#c0533f">−</text><text x="132" y="240" fill="#8a3a2b">  // TODO: add expiration check</text>
+    <rect x="80" y="258" width="640" height="38" fill="#e3ebbd"/>
+    <text x="92" y="284" fill="#5a6b1e">+</text><text x="132" y="284" fill="#3c4a10">  if (isExpired(token)) throw Expired()</text>
+    <text x="92" y="328" fill="#9a9e92">4</text><text x="132" y="328" fill="#181a17">  return jwt.verify(token, SECRET)</text>
+    <text x="92" y="370" fill="#9a9e92">5</text><text x="132" y="370" fill="#181a17">}</text>
+  </g>
+  <rect x="92" y="410" width="616" height="196" rx="12" fill="#181a17"/>
+  <circle cx="128" cy="448" r="16" fill="#dce87a"/>
+  <text x="128" y="454" fill="#181a17" font-size="16" font-weight="800" text-anchor="middle">R</text>
+  <text x="156" y="454" fill="#f2f0e7" font-size="16" font-weight="700">RepoNexus review</text>
+  <text x="560" y="454" fill="#dce87a" font-size="13" font-weight="700">APPROVE ✓</text>
+  <g fill="#c9ccc0" font-size="16">
+    <text x="120" y="500">Adding the expiry check closes the token replay</text>
+    <text x="120" y="526">vulnerability referenced in issue #42.</text>
+    <text x="120" y="566" fill="#8b9084">Suggestion: cover isExpired() with a boundary test.</text>
+  </g>
+  <text x="60" y="760" fill="#181a17" font-size="96" font-weight="900" letter-spacing="-5">Review</text>
+  <text x="60" y="850" fill="#5e6258" font-size="80" font-style="italic" font-family="Fraunces, Georgia, serif">in seconds.</text>
+</svg>

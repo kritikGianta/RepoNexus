@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { api } from '@/lib/api'
 import type { AuthTokenResponse, User } from '@/types/api'
 import toast from 'react-hot-toast'
+import SetupBanner from '@/components/SetupBanner'
 
 const features = [
   { icon: Zap,           title: 'AI Interview Prep',    desc: 'Practice with questions generated from your own repo' },
@@ -119,6 +120,8 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold text-surface-900 mb-1" style={{ letterSpacing: '-0.03em' }}>Sign in</h1>
             <p className="text-sm text-surface-500">Connect your GitHub account to get started.</p>
           </div>
+
+          <SetupBanner className="mb-6" />
 
           <button
             onClick={handleLogin}
