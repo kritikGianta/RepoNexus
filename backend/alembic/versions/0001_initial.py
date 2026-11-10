@@ -112,7 +112,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_debt_items_analysis_run_id", "debt_items", ["analysis_run_id"])
     op.create_index("ix_debt_items_repo_id", "debt_items", ["repo_id"])
-    op.create_index("ix_debt_items_file_path", "debt_items", ["file_path"])
+    op.create_index("ix_debt_items_file_path", "debt_items", ["file_path"], mysql_length={"file_path": 255})
     op.create_index("ix_debt_items_debt_category", "debt_items", ["debt_category"])
     op.create_index("ix_debt_items_severity_level", "debt_items", ["severity_level"])
 

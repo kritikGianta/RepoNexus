@@ -14,7 +14,7 @@ RepoNexus is an AI-powered repository intelligence and governance platform desig
 
 4. **Message broker (Redis)** — Celery broker/result backend and shared rate-limit counters.
 
-5. **Database (PostgreSQL 16 in Docker, SQLite for local development)** — async SQLAlchemy 2.0; schema owned by Alembic and migrated automatically by the container entrypoint.
+5. **Database (MySQL 8.4 in Docker, SQLite for local development)** — async SQLAlchemy 2.0; schema owned by Alembic and migrated automatically by the container entrypoint.
 
 6. **Analysis & AI**
    - **Pipeline** — tree-sitter AST, radon complexity, duplication fingerprints, dependency centrality (networkx), security/dependency/dead-code rules and documentation density.
@@ -39,7 +39,7 @@ flowchart TD
     end
 
     subgraph Data ["Data"]
-        DB[("PostgreSQL 16")]
+        DB[("MySQL 8.4")]
         Redis[("Redis")]
         RAG[("Code index volume<br/>(TF-IDF)")]
         MLflow["MLflow"]
@@ -181,8 +181,9 @@ erDiagram
 
 ### Conventions
 
-- Enum columns store their lowercase **values** (`queued`, `high_complexity`, …) and are native enum types on PostgreSQL.
-- All timestamps are timezone-aware (`timestamptz`) and generated in UTC.
+- Enum columns store their lowercase **values** (`queued`, `high_complexity`, …) and are native `ENUM` columns on MySQL.
+- All timestamps are UTC. MySQL `DATETIME` has no offset, so the server runs with `default-time-zone=+00:00` and the `UTCDateTime` column type (`app/models/base.py`) stores naive UTC and returns timezone-aware values.
+- The tables use `utf8mb4`; `debt_items.file_path` (up to 1024 chars) is indexed on a 255-character prefix to stay under MySQL's 3072-byte key limit.
 - Deleting a user cascades to repositories, runs, debt items and trends.
 - Composite indexes support the hot queries: `debt_items(repo_id, debt_score)`, `analysis_runs(repo_id, created_at)` and `debt_trends(repo_id, created_at)`.
 - Migrations live in `backend/alembic/versions` (`0001_initial` → `4d01ac430399` → `0003_tz_and_indexes`).

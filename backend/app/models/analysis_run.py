@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String
+from sqlalchemy import Float, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin, enum_column
+from app.models.base import Base, TimestampMixin, UTCDateTime, enum_column
 from app.models.enums import AnalysisRunStatus, TriggerType
 
 
@@ -19,8 +19,8 @@ class AnalysisRun(TimestampMixin, Base):
     total_debt_items_found: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     overall_debt_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     category_breakdown: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     mlflow_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 

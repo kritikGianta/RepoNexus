@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, enum_column
@@ -7,11 +7,13 @@ from app.models.enums import DebtCategory, SeverityLevel
 
 class DebtItem(TimestampMixin, Base):
     __tablename__ = "debt_items"
+    # MySQL limits index keys to 3072 bytes, so the long path column is indexed by prefix.
+    __table_args__ = (Index("ix_debt_items_file_path", "file_path", mysql_length=255),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     analysis_run_id: Mapped[int] = mapped_column(ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False, index=True)
     repo_id: Mapped[int] = mapped_column(ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False, index=True)
-    file_path: Mapped[str] = mapped_column(String(1024), nullable=False, index=True)
+    file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     start_line: Mapped[int] = mapped_column(Integer, nullable=False)
     end_line: Mapped[int] = mapped_column(Integer, nullable=False)
     debt_category: Mapped[DebtCategory] = mapped_column(enum_column(DebtCategory, "debtcategory"), nullable=False, index=True)

@@ -11,7 +11,8 @@ tenacity==9.0.0
 # ── Persistence ────────────────────────────────────
 sqlalchemy[asyncio]==2.0.38
 alembic==1.14.1
-asyncpg==0.30.0
+aiomysql==0.2.0
+PyMySQL==1.1.1
 aiosqlite==0.20.0
 
 # ── Security ───────────────────────────────────────

@@ -9,13 +9,14 @@
 # App:     http://localhost:8080
 # API:     http://localhost:8000/docs
 # MLflow:  http://localhost:5000
+# MySQL:   localhost:3306 (user/db: reponexus)
 # ==========================================================
 
 name: reponexus
 
 x-backend-env: &backend-env
   ENVIRONMENT: production
-  DATABASE_URL: postgresql+asyncpg://reponexus:${POSTGRES_PASSWORD:-reponexus}@postgres:5432/reponexus
+  DATABASE_URL: mysql+aiomysql://reponexus:${MYSQL_PASSWORD:-reponexus}@mysql:3306/reponexus?charset=utf8mb4
   REDIS_URL: redis://redis:6379/0
   TASK_EXECUTION_MODE: celery
   MLFLOW_TRACKING_URI: http://mlflow:5000
@@ -24,20 +25,26 @@ x-backend-env: &backend-env
   GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8080/auth/github/callback}
 
 services:
-  postgres:
-    image: postgres:16-alpine
+  mysql:
+    image: mysql:8.4
     restart: unless-stopped
+    command: ["--default-time-zone=+00:00", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
     environment:
-      POSTGRES_USER: reponexus
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reponexus}
-      POSTGRES_DB: reponexus
+      MYSQL_DATABASE: reponexus
+      MYSQL_USER: reponexus
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-reponexus}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-reponexus-root}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reponexus -d reponexus"]
+      # TCP ping fails while the image's init-only server (no networking) is running
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u reponexus -p$$MYSQL_PASSWORD --silent"]
       interval: 5s
-      timeout: 3s
-      retries: 20
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   redis:
     image: redis:7-alpine
@@ -76,7 +83,7 @@ services:
       <<: *backend-env
       RUN_MIGRATIONS: "true"
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -121,7 +128,7 @@ services:
       - "8080:80"
 
 volumes:
-  postgres_data:
+  mysql_data:
   redis_data:
   mlflow_data:
   backend_data:

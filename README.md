@@ -44,7 +44,7 @@ On top of the analysis sit 18 developer tools:
             └────────────┬─────────────┘
                          │ /api
             ┌────────────▼─────────────┐        ┌──────────────┐
-            │  FastAPI (2 workers)     │◄──────►│ PostgreSQL 16│
+            │  FastAPI (2 workers)     │◄──────►│   MySQL 8.4  │
             │  auth · repos · helpers  │        └──────────────┘
             └──────┬──────────┬────────┘
                    │ Celery   │ Groq LLM (key rotation)
@@ -77,6 +77,7 @@ docker compose up -d --build
 | API docs (OpenAPI) | http://localhost:8000/docs |
 | Readiness probe | http://localhost:8000/health/ready |
 | MLflow | http://localhost:5000 |
+| MySQL | `localhost:3306`, database/user/password `reponexus` (set `MYSQL_PORT` if 3306 is taken) |
 
 The stack boots without any third-party keys; the app shows a banner listing what is still missing.
 
