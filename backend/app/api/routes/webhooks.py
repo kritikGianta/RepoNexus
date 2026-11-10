@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import json
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +11,7 @@ from app.db.session import get_db_session
 from app.models.analysis_run import AnalysisRun
 from app.models.enums import AnalysisRunStatus, TriggerType
 from app.models.repository import Repository
-from app.tasks.analysis_tasks import run_analysis_task
+from app.tasks.analysis_tasks import dispatch_analysis
 
 router = APIRouter()
 settings = get_settings()
@@ -19,7 +19,8 @@ settings = get_settings()
 
 def verify_github_signature(raw_body: bytes, signature_header: str | None) -> bool:
     if not settings.github_webhook_secret:
-        return True
+        # Unsigned webhooks are only tolerated outside production.
+        return not settings.is_production
     if not signature_header or not signature_header.startswith("sha256="):
         return False
 
@@ -33,6 +34,7 @@ def verify_github_signature(raw_body: bytes, signature_header: str | None) -> bo
 @router.post("/github")
 async def github_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     x_github_event: str | None = Header(default=None),
     x_hub_signature_256: str | None = Header(default=None),
     session: AsyncSession = Depends(get_db_session),
@@ -77,5 +79,5 @@ async def github_webhook(
     await session.commit()
     await session.refresh(run)
 
-    run_analysis_task.delay(run.id)
+    dispatch_analysis(run.id, background_tasks)
     return {"received": True, "queued": True, "run_id": run.id}

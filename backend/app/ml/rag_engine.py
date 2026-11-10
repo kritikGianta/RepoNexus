@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.core.config import get_settings
+from app.core.ai_client import groq_manager, invoke_llm
 from app.ml.types import DebtFindingDraft
-
-settings = get_settings()
 
 SYSTEM_PROMPT = """
 You are a senior staff engineer specialized in production code reviews.
@@ -16,17 +13,19 @@ Given a debt finding and nearby repository context, produce:
 Keep output practical and specific to the provided code context.
 """.strip()
 
+FALLBACK_WHY = "This pattern increases maintenance cost and failure risk over time."
+FALLBACK_FIX = "Refactor to reduce complexity, improve naming/documentation, and add tests around the changed behavior."
 
-from app.core.ai_client import groq_manager
 
 class RAGEngine:
-    def __init__(self) -> None:
-        pass
-
-    def _get_client(self):
-        return groq_manager.get_client(temperature=0.2, max_tokens=1200, timeout=20)
+    @property
+    def available(self) -> bool:
+        return groq_manager.available
 
     def generate_explanation_and_fix(self, finding: DebtFindingDraft, context_chunks: list[str]) -> tuple[str, str]:
+        if not self.available:
+            return FALLBACK_WHY, FALLBACK_FIX
+
         context = "\n\n".join(context_chunks[:4])
         user_prompt = f"""
 Debt category: {finding.debt_category.value}
@@ -41,39 +40,25 @@ Relevant repository context:
 {context}
 
 Respond with exactly this format:
-WHY:\n<explanation>
-FIX:\n<refactor suggestion with example code if possible>
+WHY:
+<explanation>
+FIX:
+<refactor suggestion with example code if possible>
 """.strip()
 
-        def _do_invoke(client):
-            return client.invoke([SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_prompt)])
-
         try:
-            try:
-                response = _do_invoke(self._get_client())
-            except Exception as e:
-                err = str(e).lower()
-                if ("rate_limit" in err or "429" in err) and groq_manager.rotate_key():
-                    response = _do_invoke(self._get_client())
-                else:
-                    raise e
-            
-            text = str(response.content)
-        except Exception:
-            return (
-                "This pattern increases maintenance and failure risk over time.",
-                "Refactor to reduce complexity, improve naming/documentation, and add tests around changed behavior.",
+            response = invoke_llm(
+                [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_prompt)],
+                temperature=0.2,
+                max_tokens=1200,
+                timeout=30,
             )
+            text = str(response.content)
+        except Exception:  # noqa: BLE001
+            return FALLBACK_WHY, FALLBACK_FIX
 
-        why_marker = "WHY:"
-        fix_marker = "FIX:"
-
-        if why_marker in text and fix_marker in text:
-            why_part = text.split(why_marker, maxsplit=1)[1].split(fix_marker, maxsplit=1)[0].strip()
-            fix_part = text.split(fix_marker, maxsplit=1)[1].strip()
+        if "WHY:" in text and "FIX:" in text:
+            why_part = text.split("WHY:", maxsplit=1)[1].split("FIX:", maxsplit=1)[0].strip()
+            fix_part = text.split("FIX:", maxsplit=1)[1].strip()
             return why_part, fix_part
-
-        return (
-            text[:800],
-            "Introduce a focused refactor with smaller functions, clearer names, and test coverage for the modified flow.",
-        )
+        return text[:800], FALLBACK_FIX

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,39 +20,53 @@ from app.services.ai_helper_service import (
     generate_file_documentation, generate_optimization_lesson, generate_local_setup_guide,
     generate_architecture_diagram, generate_security_scan, generate_issue_triage,
     generate_readme_content, generate_contributing_guide, generate_api_documentation,
-    generate_ci_cd_pipeline, generate_issue_implementation_plan,
-    generate_release_notes, chat_with_repo, generate_zombie_scan,
+    generate_ci_cd_pipeline, generate_issue_implementation_plan, generate_detailed_pr_review,
+    generate_release_notes, generate_zombie_scan,
     generate_migration_risk, generate_cost_optimization
 )
-import sys
-import os
+import importlib
 import json
+import logging
+import os
+import sys
+from pathlib import Path
 
-# Resolve own_models path robustly: walk up from this file to find the project root
-_this_dir = os.path.dirname(os.path.abspath(__file__))
-_project_root = os.path.abspath(os.path.join(_this_dir, "..", "..", "..", ".."))
-_own_models_path = os.path.join(_project_root, "own_models")
-if os.path.isdir(_own_models_path) and _own_models_path not in sys.path:
-    sys.path.insert(0, _own_models_path)
+from app.core.exceptions import AppError
 
-zombie_scanner = None
-security_scanner = None
-cost_optimizer = None
-migration_analyzer = None
-issue_triage_inference = None
-debt_scorer = None
+logger = logging.getLogger(__name__)
 
-try:
-    import zombie_scanner  # type: ignore
-    import security_scanner  # type: ignore
-    import cost_optimizer  # type: ignore
-    import migration_analyzer  # type: ignore
-    import issue_triage_inference  # type: ignore
-    import debt_scorer  # type: ignore
-except ImportError as _import_err:
-    pass  # Graceful fallback: endpoints will use Groq LLM when local models are unavailable
+
+def _locate_own_models() -> Path | None:
+    """Find the bundled own_models package both in a source checkout and in the Docker image."""
+    here = Path(__file__).resolve()
+    candidates = [Path(os.environ["OWN_MODELS_DIR"])] if os.environ.get("OWN_MODELS_DIR") else []
+    candidates += [parent / "own_models" for parent in here.parents]
+    return next((c for c in candidates if c.is_dir()), None)
+
+
+_own_models_path = _locate_own_models()
+if _own_models_path is not None and str(_own_models_path) not in sys.path:
+    sys.path.insert(0, str(_own_models_path))
+
+
+def _optional_module(name: str):
+    """Import a local model module; each one is optional so one failure never disables the rest."""
+    try:
+        return importlib.import_module(name)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Local model %s unavailable, using LLM fallback: %s", name, exc)
+        return None
+
+
+zombie_scanner = _optional_module("zombie_scanner")
+security_scanner = _optional_module("security_scanner")
+cost_optimizer = _optional_module("cost_optimizer")
+migration_analyzer = _optional_module("migration_analyzer")
+issue_triage_inference = _optional_module("issue_triage_inference")
+debt_scorer = _optional_module("debt_scorer")
+
 from app.services.github_service import GitHubService
-from app.services.rag_chat_service import embed_repository, query_repository
+from app.services.rag_chat_service import embed_repository, index_exists, query_repository
 
 settings = get_settings()
 router = APIRouter()
@@ -338,6 +352,8 @@ async def create_github_issue(
         item.github_issue_url = result["html_url"]
         await session.commit()
         return CreateIssueResponse(issue_number=result["number"], html_url=result["html_url"])
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to create issue: {exc}") from exc
 
@@ -421,6 +437,8 @@ async def create_fix_pr(
         await session.commit()
         return FixPRResponse(pr_number=result["number"], html_url=result["html_url"])
 
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to create fix PR: {exc}") from exc
 
@@ -453,6 +471,8 @@ async def generate_readme_endpoint(
         readme_md = generate_readme(repo.full_name, tree, sample_files)
         return ReadmeResponse(markdown=readme_md)
 
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"README generation failed: {exc}") from exc
 
@@ -500,6 +520,8 @@ async def push_readme_as_pr(
         )
         return ReadmePushResponse(pr_number=result["number"], html_url=result["html_url"])
 
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to push README: {exc}") from exc
 
@@ -507,20 +529,6 @@ async def push_readme_as_pr(
 # ═══════════════════════════════════════════════════════════════════════
 # Feature 4: Pull Request AI Reviewer
 # ═══════════════════════════════════════════════════════════════════════
-
-@router.get("/repos/{repo_id}/prs", response_model=PRListResponse)
-async def list_pull_requests(
-    repo_id: int,
-    session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
-):
-    github, repo = await _get_github_and_repo(repo_id, current_user, session)
-    try:
-        prs = github.list_open_pull_requests(repo.full_name)
-        return PRListResponse(pull_requests=[PRListItem(**pr) for pr in prs])
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Failed to list PRs: {exc}") from exc
-
 
 @router.post("/repos/{repo_id}/prs/{pr_number}/review", response_model=PRReviewResponse)
 async def review_pull_request(
@@ -548,6 +556,8 @@ async def review_pull_request(
         pr_url = f"https://github.com/{repo.full_name}/pull/{pr_number}"
         return PRReviewResponse(review_markdown=review_md, posted_to_github=posted, pr_html_url=pr_url)
 
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"PR review failed: {exc}") from exc
 
@@ -567,6 +577,8 @@ async def embed_repo_endpoint(
         return EmbedResponse(status=result["status"], chunks=result["count"])
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Embedding failed: {exc}") from exc
 
@@ -583,34 +595,29 @@ async def chat_with_repo_endpoint(
     if repo is None or repo.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    try:
-        try:
-            context_chunks = query_repository(repo_id, payload.question, k=8)
-            answer = generate_chat_response(payload.question, context_chunks, repo.full_name)
-            sources = [chunk.split("\n")[0] for chunk in context_chunks[:5]]
-            return ChatResponse(answer=answer, sources=sources)
-        except ValueError:
-            # Fallback for missing RAG
-            token = decrypt_token(current_user.encrypted_access_token)
-            github = GitHubService(token)
-            files = github.fetch_repository_files(
-                full_name=repo.full_name,
-                branch=repo.default_branch,
-                allowed_extensions=settings.supported_extensions,
-                max_files=10,
-            )
-            context = "\n\n".join([f"File: {f.path}\n{f.content}" for f in files])
-            answer = generate_chat_response(payload.question, [context], repo.full_name)
-            return ChatResponse(answer=answer, sources=[f.path for f in files])
+    import asyncio
 
+    try:
+        # Build the code index on first use so chat works without a separate "embed" step.
+        if not index_exists(repo_id):
+            await embed_repository(session, repo_id, current_user.id)
+        context_chunks = await asyncio.to_thread(query_repository, repo_id, payload.question, 8)
+        answer = await asyncio.to_thread(generate_chat_response, payload.question, context_chunks, repo.full_name)
+        sources = [chunk.split(chr(10))[0] for chunk in context_chunks[:5]]
+        return ChatResponse(answer=answer, sources=sources)
+    except AppError:
+        raise
     except Exception as exc:
         err_msg = str(exc)
         if "rate_limit" in err_msg.lower() or "429" in err_msg:
             raise HTTPException(
                 status_code=429,
-                detail="Rate limit reached for the AI model. Please try again in about 45 minutes (Groq TPD limit)."
-            )
-        raise HTTPException(status_code=500, detail=f"AI Chat Error: {err_msg}")
+                detail="The AI provider rate limit was reached. Add more keys to GROQ_API_KEYS or retry shortly.",
+            ) from exc
+        logger.exception("Repository chat failed")
+        raise HTTPException(status_code=500, detail="AI chat failed. Check the backend logs for details.") from exc
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # Feature 6: Daily Standup
 # ═══════════════════════════════════════════════════════════════════════
@@ -627,6 +634,8 @@ async def generate_standup(
         commits = github.get_recent_commits(repo.full_name, payload.days_back)
         report = generate_standup_report(repo.full_name, commits, payload.days_back)
         return StandupResponse(markdown=report)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Standup generation failed: {exc}") from exc
 
@@ -669,6 +678,8 @@ async def interview_generate(
             
         questions = [InterviewQuestion(**q) for q in questions_data]
         return InterviewGenerateResponse(questions=questions, code_snippet=project_context[:1500], file_path="Project Context (README + Tree)")
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate interview question: {exc}") from exc
 
@@ -683,6 +694,8 @@ async def interview_evaluate(
     try:
         feedback, score = evaluate_interview_answer(payload.question, payload.code_snippet, payload.user_answer)
         return InterviewEvaluateResponse(feedback=feedback, score=score)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to evaluate answer: {exc}") from exc
 
@@ -700,6 +713,8 @@ async def get_repo_tree_endpoint(
     try:
         tree = github.get_repo_tree(repo.full_name, repo.default_branch)
         return RepoTreeResponse(files=tree)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to fetch tree: {exc}") from exc
 
@@ -741,6 +756,8 @@ async def auto_docs_pr(
             repo.default_branch
         )
         return DocsGenerateResponse(pr_number=result["number"], html_url=result["html_url"], diff=diff_str)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate docs PR: {exc}") from exc
 
@@ -756,6 +773,8 @@ async def code_tutor_lesson(
         content, _ = github.get_file_content(repo.full_name, payload.file_path, repo.default_branch)
         lesson = generate_optimization_lesson(payload.file_path, content)
         return TutorLessonResponse(markdown_lesson=lesson)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate tutor lesson: {exc}") from exc
 
@@ -795,6 +814,8 @@ async def generate_setup_guide(
                     
         guide = generate_local_setup_guide(repo.full_name, config_files_content)
         return SetupGuideResponse(markdown_guide=guide)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate setup guide: {exc}") from exc
 
@@ -825,6 +846,8 @@ async def generate_diagram(
                     
         mermaid_code = generate_architecture_diagram(repo.full_name, tree_str, readme_content)
         return DiagramResponse(mermaid_code=mermaid_code)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate diagram: {exc}") from exc
 
@@ -892,6 +915,8 @@ async def generate_security_audit(
             }]
 
         return SecurityScanResponse(issues=all_issues)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to run security scan: {exc}") from exc
 
@@ -909,6 +934,8 @@ async def list_issues(
     try:
         issues = github.list_open_issues(repo.full_name)
         return IssuesListResponse(issues=issues)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to fetch issues: {exc}") from exc
 
@@ -925,7 +952,7 @@ async def triage_issues(
 
         # Try local ML model first (zero token cost, 82% F1)
         try:
-            triage = issue_triage_inference.triage_issues(issues)
+            triage = issue_triage_inference.triage_issues(issues) if issue_triage_inference else []
             if triage:  # Model loaded and returned results
                 return IssueTriageResponse(triage=triage)
         except Exception:
@@ -936,6 +963,8 @@ async def triage_issues(
         raw_json = generate_issue_triage(repo.full_name, issues_json)
         triage = json.loads(raw_json)
         return IssueTriageResponse(triage=triage)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to triage issues: {exc}") from exc
 
@@ -974,6 +1003,8 @@ async def readme_generator(
                 break
         content = generate_readme_content(repo.full_name, file_tree, config_content, readme_existing)
         return ReadmeGenerateResponse(markdown_content=content)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate README: {exc}") from exc
 
@@ -1002,6 +1033,8 @@ async def contributing_generator(
                     pass
         content = generate_contributing_guide(repo.full_name, file_tree, config_content)
         return ContribGuideResponse(markdown_content=content)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate contributing guide: {exc}") from exc
 
@@ -1039,6 +1072,8 @@ async def api_docs_generator(
             raise ValueError("No route or controller files found in this repository.")
         content = generate_api_documentation(repo.full_name, route_content)
         return ApiDocsResponse(markdown_content=content)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate API docs: {exc}") from exc
 
@@ -1067,6 +1102,8 @@ async def cicd_generator(
                     pass
         content = generate_ci_cd_pipeline(repo.full_name, file_tree, config_content)
         return CiCdGenerateResponse(markdown_content=content)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate CI/CD pipeline: {exc}") from exc
 
@@ -1089,6 +1126,8 @@ async def issue_plan_generator(
         file_tree = "\n".join(tree)
         content = generate_issue_implementation_plan(repo.full_name, request.issue_title, request.issue_body, file_tree)
         return IssuePlanGenerateResponse(markdown_content=content)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate Implementation Plan: {exc}") from exc
 
@@ -1112,8 +1151,10 @@ async def pr_review_generator(
         pr = github_repo.get_pull(request.pr_number)
         diff_text = github.get_pull_request_diff(repo.full_name, request.pr_number)
         
-        content = generate_pr_review(repo.full_name, pr.title, pr.body or "", diff_text)
+        content = generate_detailed_pr_review(repo.full_name, pr.title, pr.body or "", diff_text)
         return PrReviewResponse(markdown_content=content)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate PR review: {exc}") from exc
 
@@ -1131,8 +1172,10 @@ async def list_prs_handler(
 ):
     github, repo = await _get_github_and_repo(repo_id, current_user, session)
     try:
-        prs = github.get_pull_requests(repo.full_name)
+        prs = github.list_open_pull_requests(repo.full_name)
         return PrListResponse(prs=prs)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to fetch PRs: {exc}") from exc
 
@@ -1153,6 +1196,8 @@ async def release_notes_generator(
         commits = github.get_recent_commits(repo.full_name, days_back=30)
         content = generate_release_notes(repo.full_name, commits)
         return ReleaseNotesResponse(markdown_content=content)
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to generate release notes: {exc}") from exc
 
@@ -1182,6 +1227,8 @@ async def analyze_zombie_code(
         else:
             issues = await generate_zombie_scan(sample_files)
         return {"issues": issues}
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Zombie scan failed: {exc}") from exc
 
@@ -1209,6 +1256,8 @@ async def analyze_migration_risk(
         else:
             risks = await generate_migration_risk(sample_files)
         return {"risks": risks}
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Migration risk analysis failed: {exc}") from exc
 
@@ -1236,6 +1285,8 @@ async def analyze_cost_optimization(
         else:
             issues = await generate_cost_optimization(sample_files)
         return {"issues": issues}
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Cost optimization failed: {exc}") from exc
 
@@ -1294,6 +1345,8 @@ async def score_repo_debt(
                 f"Repository health: {health_score}/100."
             )
         }
+    except AppError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Debt scoring failed: {exc}") from exc
 

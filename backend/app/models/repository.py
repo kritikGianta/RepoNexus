@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Float, ForeignKey, String
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -15,9 +15,9 @@ class Repository(TimestampMixin, Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     default_branch: Mapped[str] = mapped_column(String(255), nullable=False)
     primary_language: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    last_analyzed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     current_overall_debt_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    rag_embedded_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    rag_embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     owner = relationship("User", back_populates="repositories")
     analysis_runs = relationship("AnalysisRun", back_populates="repository", cascade="all, delete-orphan")

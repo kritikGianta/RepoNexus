@@ -339,7 +339,7 @@ class AnalysisPipeline:
             lines = file.content.splitlines()
             for index, line in enumerate(lines, start=1):
                 for symbol, message in deprecated_patterns.items():
-                    if f"import {symbol}" in line or f"from {symbol} " in line:
+                    if re.match(rf"^\s*(import|from)\s+{symbol}(\s|$|,)", line):
                         severity = SeverityLevel.MEDIUM
                         effort = self.effort_estimator.estimate(
                             severity, DebtCategory.OUTDATED_DEPENDENCIES, complexity_factor=1.1
@@ -428,46 +428,48 @@ class AnalysisPipeline:
         ]
 
     def _attach_ai_context(self, findings: list[DebtFindingDraft], vector_index) -> list[DebtFindingDraft]:
+        """Enrich the highest-impact findings with LLM explanations; never fails the analysis."""
         import concurrent.futures
-        enriched = []
-        # Sort by score descending so we enrich the most important findings first
+
         sorted_findings = sorted(findings, key=lambda f: f.raw_score, reverse=True)
-        MAX_AI_ENRICHMENTS = 10
-        
-        to_enrich = sorted_findings[:MAX_AI_ENRICHMENTS]
-        others = sorted_findings[MAX_AI_ENRICHMENTS:]
+        limit = settings.max_ai_enrichments if self.rag_engine.available else 0
+        to_enrich, others = sorted_findings[:limit], sorted_findings[limit:]
 
-        def _enrich_single(finding):
+        def _enrich_single(finding: DebtFindingDraft) -> None:
+            query = f"{finding.debt_category.value} in {finding.file_path}: {finding.title}"
+            context = self.embedder.query(vector_index, query_text=query, k=4)
+            explanation, fix = self.rag_engine.generate_explanation_and_fix(finding=finding, context_chunks=context)
+            finding.ai_explanation = explanation
+            finding.ai_fix_suggestion = fix
+
+        if to_enrich:
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(to_enrich)))
+            futures = {executor.submit(_enrich_single, f): f for f in to_enrich}
             try:
-                query = f"{finding.debt_category.value} in {finding.file_path}: {finding.title}"
-                context = self.embedder.query(vector_index, query_text=query, k=4)
-                explanation, fix = self.rag_engine.generate_explanation_and_fix(finding=finding, context_chunks=context)
-                finding.ai_explanation = explanation
-                finding.ai_fix_suggestion = fix
-            except Exception:
-                finding.ai_explanation = "Detailed AI analysis timed out."
-                finding.ai_fix_suggestion = "Review the offending code snippet and refactor for clarity."
-            return finding
+                for future in concurrent.futures.as_completed(futures, timeout=120):
+                    if future.exception() is not None:
+                        finding = futures[future]
+                        finding.ai_explanation = "AI analysis was unavailable for this item."
+                        finding.ai_fix_suggestion = "Review the offending code snippet and refactor for clarity."
+            except concurrent.futures.TimeoutError:
+                pass
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
+            for finding in to_enrich:
+                if not finding.ai_explanation:
+                    finding.ai_explanation = "AI analysis timed out for this item."
+                    finding.ai_fix_suggestion = "Manual review recommended."
 
-        # Use a small thread pool for the 10 parallel API calls
-        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_AI_ENRICHMENTS) as executor:
-            # Set a total timeout for the entire enrichment phase to be safe (e.g., 40s)
-            future_to_finding = {executor.submit(_enrich_single, f): f for f in to_enrich}
-            for future in concurrent.futures.as_completed(future_to_finding, timeout=40):
-                try:
-                    enriched.append(future.result())
-                except Exception:
-                    f = future_to_finding[future]
-                    f.ai_explanation = "AI analysis skipped due to timeout."
-                    f.ai_fix_suggestion = "Manual review recommended."
-                    enriched.append(f)
-
+        skipped_reason = (
+            "AI enrichment was skipped for this item to keep analysis latency bounded."
+            if self.rag_engine.available
+            else "AI explanations are disabled because no GROQ_API_KEY is configured."
+        )
         for finding in others:
-            finding.ai_explanation = "AI enrichment was skipped for this item to keep analysis latency bounded."
+            finding.ai_explanation = skipped_reason
             finding.ai_fix_suggestion = "Prioritize this item by severity and refactor the affected code."
-            enriched.append(finding)
 
-        return enriched
+        return sorted_findings
 
     def _to_payload(self, finding: DebtFindingDraft) -> dict:
         return {

@@ -1,25 +1,27 @@
 """Integration tests for analysis run endpoints."""
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 pytestmark = pytest.mark.asyncio
 
 
-@patch("app.api.routes.analysis.run_analysis_task")
-async def test_trigger_run(mock_task, client, auth_headers, seed_repo):
+@patch("app.api.routes.analysis.dispatch_analysis")
+async def test_trigger_run(mock_dispatch, client, auth_headers, seed_repo):
     """POST /analysis/{repo_id}/runs should create and enqueue a run."""
-    mock_task.delay = MagicMock()
-
     resp = await client.post(
         f"/api/v1/analysis/{seed_repo.id}/runs?trigger_type=manual",
         headers=auth_headers,
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 202
     data = resp.json()
     assert data["status"] == "queued"
     assert "run_id" in data
-    mock_task.delay.assert_called_once()
+    mock_dispatch.assert_called_once()
+
+    # A second trigger while the first is still queued must be rejected.
+    again = await client.post(f"/api/v1/analysis/{seed_repo.id}/runs", headers=auth_headers)
+    assert again.status_code == 409
 
 
 async def test_list_runs(client, auth_headers, seed_run, seed_repo):

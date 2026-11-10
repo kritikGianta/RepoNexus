@@ -10,7 +10,6 @@ Usage:
 """
 
 import json
-import os
 from pathlib import Path
 
 _MODEL_DIR  = Path(__file__).parent / "issue_triager"
@@ -40,7 +39,6 @@ def _load_model():
 
     try:
         from transformers import AutoTokenizer, AutoModelForSequenceClassification
-        import torch
 
         print(f"[IssueTriage] Loading model from {_MODEL_DIR}...")
         _tokenizer = AutoTokenizer.from_pretrained(str(_MODEL_DIR))

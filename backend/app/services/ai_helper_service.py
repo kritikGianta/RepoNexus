@@ -1,30 +1,34 @@
-"""Centralized AI helper service using Groq LLM for all AI-powered GitHub features."""
+"""Centralized AI helper service using the Groq LLM for all AI-powered GitHub features."""
 
 from __future__ import annotations
 
 import json
-from langchain_groq import ChatGroq
+from typing import Any
+
+from app.core.ai_client import invoke_llm
 from app.core.config import get_settings
+from app.core.exceptions import AIUnavailableError
 
 settings = get_settings()
 
 
-from app.core.ai_client import groq_manager
-
-def _llm(temperature: float = 0.3, max_tokens: int = 4096) -> ChatGroq:
-    return groq_manager.get_client(temperature=temperature, max_tokens=max_tokens)
-
 def _invoke_safe(prompt: Any, temperature: float = 0.3, max_tokens: int = 4096):
-    """Internal helper to invoke Groq with key rotation."""
-    try:
-        llm = _llm(temperature=temperature, max_tokens=max_tokens)
-        return llm.invoke(prompt)
-    except Exception as e:
-        err = str(e).lower()
-        if ("rate_limit" in err or "429" in err) and groq_manager.rotate_key():
-            llm = _llm(temperature=temperature, max_tokens=max_tokens)
-            return llm.invoke(prompt)
-        raise e
+    """Invoke the LLM with automatic key rotation (see app.core.ai_client)."""
+    return invoke_llm(prompt, temperature=temperature, max_tokens=max_tokens)
+
+
+def _parse_json_list(raw: str) -> list[dict]:
+    """Parse a JSON array out of an LLM response, tolerating markdown fences and prose."""
+    text = raw.strip()
+    if text.startswith("```"):
+        text = text.split(chr(10), 1)[1] if chr(10) in text else text[3:]
+        if text.rstrip().endswith("```"):
+            text = text.rstrip()[:-3]
+    start, end = text.find("["), text.rfind("]")
+    if start != -1 and end > start:
+        text = text[start : end + 1]
+    parsed = json.loads(text)
+    return parsed if isinstance(parsed, list) else []
 
 
 def generate_readme(repo_name: str, tree: list[str], sample_files: dict[str, str]) -> str:
@@ -369,6 +373,8 @@ Format:
         elif response.startswith("```"):
             response = "\n".join(response.split("\n")[1:-1])
         return response
+    except AIUnavailableError:
+        raise
     except Exception as e:
         return f'[{{"severity": "Low", "file": "N/A", "issue": "AI Service Rate Limited", "fix": "Please try again later. Detail: {str(e)}"}}]'
 
@@ -435,7 +441,7 @@ Output ONLY the raw markdown. Do NOT wrap in code fences."""
     return _invoke_safe(prompt, temperature=0.3, max_tokens=3000).content
 
 
-def generate_pr_review(repo_name: str, pr_title: str, pr_body: str, diff_text: str) -> str:
+def generate_detailed_pr_review(repo_name: str, pr_title: str, pr_body: str, diff_text: str) -> str:
     prompt = f"""You are an elite Senior Staff Engineer performing a code review for a Pull Request in the "{repo_name}" repository.
 
 ## PR Context:
@@ -621,10 +627,9 @@ Files:
 {content}
 """
     try:
-        res = _invoke_safe(prompt, temperature=0).content.strip()
-        if res.startswith("```json"): res = res[7:-3].strip()
-        elif res.startswith("```"): res = res[3:-3].strip()
-        return json.loads(res)
+        return _parse_json_list(_invoke_safe(prompt, temperature=0).content)
+    except AIUnavailableError:
+        raise
     except Exception as e:
         return [{"file": "Rate Limit", "component": "API", "reason": f"AI Error or Rate Limit: {str(e)}", "safe_to_delete": False}]
 
@@ -646,10 +651,9 @@ Files:
 {content}
 """
     try:
-        res = _invoke_safe(prompt, temperature=0).content.strip()
-        if res.startswith("```json"): res = res[7:-3].strip()
-        elif res.startswith("```"): res = res[3:-3].strip()
-        return json.loads(res)
+        return _parse_json_list(_invoke_safe(prompt, temperature=0).content)
+    except AIUnavailableError:
+        raise
     except Exception as e:
         return [{"file": "Rate Limit", "risk_level": "Medium", "description": f"AI Error or Rate Limit: {str(e)}", "recommendation": "Try again later"}]
 
@@ -671,9 +675,8 @@ Files:
 {content}
 """
     try:
-        res = _invoke_safe(prompt, temperature=0).content.strip()
-        if res.startswith("```json"): res = res[7:-3].strip()
-        elif res.startswith("```"): res = res[3:-3].strip()
-        return json.loads(res)
+        return _parse_json_list(_invoke_safe(prompt, temperature=0).content)
+    except AIUnavailableError:
+        raise
     except Exception as e:
         return [{"file": "Rate Limit", "issue_type": "API Error", "description": f"AI Error or Rate Limit: {str(e)}", "optimized_code": "Try again later"}]

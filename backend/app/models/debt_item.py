@@ -1,7 +1,7 @@
-from sqlalchemy import Boolean, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base, TimestampMixin, enum_column
 from app.models.enums import DebtCategory, SeverityLevel
 
 
@@ -14,8 +14,8 @@ class DebtItem(TimestampMixin, Base):
     file_path: Mapped[str] = mapped_column(String(1024), nullable=False, index=True)
     start_line: Mapped[int] = mapped_column(Integer, nullable=False)
     end_line: Mapped[int] = mapped_column(Integer, nullable=False)
-    debt_category: Mapped[DebtCategory] = mapped_column(Enum(DebtCategory), nullable=False, index=True)
-    severity_level: Mapped[SeverityLevel] = mapped_column(Enum(SeverityLevel), nullable=False, index=True)
+    debt_category: Mapped[DebtCategory] = mapped_column(enum_column(DebtCategory, "debtcategory"), nullable=False, index=True)
+    severity_level: Mapped[SeverityLevel] = mapped_column(enum_column(SeverityLevel, "severitylevel"), nullable=False, index=True)
     debt_score: Mapped[float] = mapped_column(Float, nullable=False)
     estimated_effort_hours: Mapped[float] = mapped_column(Float, nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)

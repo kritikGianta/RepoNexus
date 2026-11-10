@@ -4,10 +4,7 @@ import sys
 import structlog
 
 
-LOG_LEVEL = "INFO"
-
-
-def configure_logging() -> None:
+def configure_logging(level: str = "INFO") -> None:
     timestamper = structlog.processors.TimeStamper(fmt="iso")
 
     structlog.configure(
@@ -27,4 +24,6 @@ def configure_logging() -> None:
         cache_logger_on_first_use=True,
     )
 
-    logging.basicConfig(format="%(message)s", stream=sys.stdout, level=LOG_LEVEL)
+    logging.basicConfig(format="%(message)s", stream=sys.stdout, level=level.upper(), force=True)
+    for noisy in ("httpx", "httpcore", "urllib3", "github"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)

@@ -37,7 +37,7 @@ def scan_python(content: str, filename: str) -> list[dict]:
                 "reason": "Defined but never called or referenced in this file.",
                 "safe_to_delete": False # Requires manual review for cross-file usage
             })
-    except Exception as e:
+    except Exception:
         pass
     return issues
 

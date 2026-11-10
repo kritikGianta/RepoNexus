@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.core.oauth import build_github_oauth_url, exchange_code_for_token, fetch_github_user
 from app.core.security import create_access_token, create_oauth_state, verify_oauth_state
 from app.db.session import get_db_session
@@ -15,6 +16,11 @@ router = APIRouter()
 
 @router.get("/github/login", response_model=GitHubLoginResponse)
 async def github_login() -> GitHubLoginResponse:
+    if not get_settings().github_oauth_configured:
+        raise HTTPException(
+            status_code=503,
+            detail="GitHub OAuth is not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in backend/.env.",
+        )
     state = create_oauth_state()
     return GitHubLoginResponse(authorize_url=build_github_oauth_url(state=state), state=state)
 

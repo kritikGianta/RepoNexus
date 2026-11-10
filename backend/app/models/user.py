@@ -1,7 +1,7 @@
-from sqlalchemy import BigInteger, Enum, String, Text
+from sqlalchemy import BigInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base, TimestampMixin, enum_column
 from app.models.enums import PlanTier
 
 
@@ -14,6 +14,6 @@ class User(TimestampMixin, Base):
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     encrypted_access_token: Mapped[str] = mapped_column(Text, nullable=False)
-    plan_tier: Mapped[PlanTier] = mapped_column(Enum(PlanTier), nullable=False, default=PlanTier.FREE)
+    plan_tier: Mapped[PlanTier] = mapped_column(enum_column(PlanTier, "plantier"), nullable=False, default=PlanTier.FREE)
 
     repositories = relationship("Repository", back_populates="owner", cascade="all, delete-orphan")

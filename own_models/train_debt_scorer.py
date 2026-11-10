@@ -16,7 +16,6 @@ Saves: own_models/debt_scorer_model.pkl
 import ast
 import os
 import re
-import json
 import pickle
 import time
 import requests

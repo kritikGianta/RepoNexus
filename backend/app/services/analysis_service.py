@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ForbiddenError, NotFoundError
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.models.analysis_run import AnalysisRun
 from app.models.debt_item import DebtItem
 from app.models.debt_trend import DebtTrend
@@ -20,26 +20,14 @@ class AnalysisService:
     async def create_run(self, repo_id: int, user_id: int, trigger_type: TriggerType) -> AnalysisRun:
         repo = await self._get_repo(repo_id, user_id)
 
-        # 1. Check for truly active runs to prevent multiple concurrent tasks on free tier
-        active_stmt = select(AnalysisRun).where(
-            AnalysisRun.repo_id == repo.id,
-            AnalysisRun.status == AnalysisRunStatus.RUNNING,
-            AnalysisRun.created_at > datetime.now(timezone.utc) - timedelta(minutes=30)
-        )
-        active_run = (await self.session.execute(active_stmt)).scalars().first()
-        if active_run:
-            raise ForbiddenError("An analysis is already in progress for this repository. Please wait for it to complete.")
+        await self.fail_stale_runs()
 
-        # 2. Cleanup Zombie Runs: Mark any existing stuck/queued runs for this repo as FAILED
-        stuck_stmt = select(AnalysisRun).where(
+        active_stmt = select(AnalysisRun.id).where(
             AnalysisRun.repo_id == repo.id,
-            AnalysisRun.status.in_([AnalysisRunStatus.RUNNING, AnalysisRunStatus.QUEUED])
+            AnalysisRun.status.in_([AnalysisRunStatus.RUNNING, AnalysisRunStatus.QUEUED]),
         )
-        stuck_runs = (await self.session.execute(stuck_stmt)).scalars().all()
-        for stuck in stuck_runs:
-            stuck.status = AnalysisRunStatus.FAILED
-            stuck.error_message = "Analysis interrupted by a new run request or server restart."
-            stuck.ended_at = datetime.now(timezone.utc)
+        if (await self.session.execute(active_stmt)).first() is not None:
+            raise ConflictError("An analysis is already in progress for this repository. Please wait for it to complete.")
 
         run = AnalysisRun(repo_id=repo.id, status=AnalysisRunStatus.QUEUED, trigger_type=trigger_type)
         self.session.add(run)
@@ -69,9 +57,7 @@ class AnalysisService:
         if run is None:
             raise NotFoundError("Analysis run not found")
 
-        repo = await self._get_repo(run.repo_id, user_id)
-        if repo.user_id != user_id:
-            raise ForbiddenError("Access denied")
+        await self._get_repo(run.repo_id, user_id)
         return run
 
     async def get_run_for_worker(self, run_id: int) -> AnalysisRun:
@@ -140,6 +126,23 @@ class AnalysisService:
         await self.session.commit()
         await self.session.refresh(run)
         return run
+
+    async def fail_stale_runs(self) -> int:
+        """Mark runs left queued/running by a crashed worker or restart as failed."""
+        from app.core.config import get_settings
+
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=get_settings().celery_task_time_limit_seconds)
+        stmt = select(AnalysisRun).where(
+            AnalysisRun.status.in_([AnalysisRunStatus.RUNNING, AnalysisRunStatus.QUEUED]),
+            AnalysisRun.created_at < cutoff,
+        )
+        stale = (await self.session.execute(stmt)).scalars().all()
+        for run in stale:
+            run.status = AnalysisRunStatus.FAILED
+            run.error_message = "Analysis exceeded the time limit or was interrupted by a restart."
+            run.ended_at = datetime.now(timezone.utc)
+        await self.session.commit()
+        return len(stale)
 
     async def _get_repo(self, repo_id: int, user_id: int) -> Repository:
         stmt = select(Repository).where(Repository.id == repo_id)

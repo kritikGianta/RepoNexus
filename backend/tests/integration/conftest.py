@@ -1,29 +1,11 @@
 """Shared integration test fixtures with in-memory DB and deterministic mocks."""
 
-import asyncio
-import os
-from pathlib import Path
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from cryptography.fernet import Fernet
 from httpx import AsyncClient, ASGITransport
-
-# Ensure test environment vars are set before any app imports
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
-os.environ.setdefault("GITHUB_CLIENT_ID", "test-client-id")
-os.environ.setdefault("GITHUB_CLIENT_SECRET", "test-client-secret")
-os.environ.setdefault("GITHUB_REDIRECT_URI", "http://localhost:8000/api/v1/auth/github/callback")
-os.environ.setdefault("JWT_SECRET", "x" * 32)
-os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
-os.environ.setdefault("GROQ_API_KEY", "test-key")
-os.environ.setdefault("MLFLOW_TRACKING_URI", "http://localhost:5000")
-os.environ.setdefault("API_BASE_URL", "http://localhost:8000")
-os.environ.setdefault("CORS_ORIGINS", "http://localhost:5173")
-os.environ.setdefault("environment", "test")
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from app.models.base import Base
@@ -36,13 +18,6 @@ from app.models.analysis_run import AnalysisRun
 from app.models.debt_item import DebtItem
 from app.models.debt_trend import DebtTrend
 from app.models.enums import PlanTier, AnalysisRunStatus, TriggerType, DebtCategory, SeverityLevel
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest_asyncio.fixture
